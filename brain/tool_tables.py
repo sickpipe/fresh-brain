@@ -40,8 +40,8 @@ TABLE_COLUMNS = {
         "created_at", "updated_at", "deleted_at",
     ],
     "session_notes": [
-        "slug", "session_ended_at", "summary", "body", "projects_touched",
-        "embedding_model", "created_at",
+        "slug", "title", "session_ended_at", "summary", "body",
+        "projects_touched", "tags", "embedding_model", "created_at",
     ],
     "standing_orders": [
         "slug", "title", "body", "summary", "scope", "active",
@@ -81,7 +81,8 @@ SUMMARY_COLUMNS = {
         "related_topic", "tags", "updated_at",
     ],
     "session_notes": [
-        "slug", "session_ended_at", "summary", "projects_touched", "created_at",
+        "slug", "title", "session_ended_at", "summary",
+        "projects_touched", "tags", "created_at",
     ],
     "standing_orders": [
         "slug", "title", "summary", "scope", "active",
@@ -114,7 +115,7 @@ UPSERT_META_COLUMNS = {
         "summary", "namespace", "scope",
     ],
     "session_notes": [
-        "session_ended_at", "summary", "projects_touched",
+        "title", "session_ended_at", "summary", "projects_touched", "tags",
     ],
     "standing_orders": [
         "title", "scope", "active", "effective_from", "tags",

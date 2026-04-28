@@ -1,4 +1,4 @@
--- Brain Database Schema (v4 + hybrid search additions)
+-- Brain Database Schema (v6)
 -- Generated from live database: 2026-04-28
 -- Source of truth for fresh installs. Kept in sync with migrations.
 --
@@ -6,6 +6,10 @@
 -- plus tsvector/GIN full-text search for hybrid retrieval. Every searchable
 -- table has both an HNSW vector index and a generated tsvector column with
 -- GIN index. See migration 002_hybrid_search_and_improvements.sql.
+--
+-- v6 (003_session_notes_title_tags.sql): session_notes gains title + tags
+-- columns and session_ended_at becomes nullable so notes can be logged
+-- mid-session.
 
 -- Extensions
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
@@ -155,12 +159,17 @@ CREATE TRIGGER trg_memory_entries_updated_at
 -- ============================================================
 -- session_notes (append-only, no soft-delete)
 -- ============================================================
+-- session_ended_at is nullable: notes can be logged mid-session and the
+-- end timestamp gets set when the session truly closes (no silent now()
+-- default — that would lie about session duration).
 CREATE TABLE session_notes (
     slug             TEXT PRIMARY KEY,
-    session_ended_at TIMESTAMPTZ NOT NULL,
+    title            TEXT,
+    session_ended_at TIMESTAMPTZ,
     summary          TEXT NOT NULL,
     body             TEXT NOT NULL,
     projects_touched TEXT[],
+    tags             TEXT[],
     embedding        vector(384),
     embedding_model  TEXT,
     tsv              tsvector GENERATED ALWAYS AS (

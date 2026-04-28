@@ -1,0 +1,288 @@
+-- Brain Database Schema (v4)
+-- Generated from live database: 2026-04-28
+-- Source of truth for fresh installs. Kept in sync with migrations.
+--
+-- SEARCH: Brain uses pgvector semantic search exclusively (all-MiniLM-L6-v2,
+-- 384-dim). Full-text search (tsvector/GIN) is intentionally omitted.
+
+-- Extensions
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE EXTENSION IF NOT EXISTS vector;
+
+-- ============================================================
+-- Function: touch_updated_at()
+-- ============================================================
+CREATE OR REPLACE FUNCTION touch_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ============================================================
+-- brain_config: key-value system settings
+-- ============================================================
+CREATE TABLE brain_config (
+    key         TEXT PRIMARY KEY,
+    value       TEXT NOT NULL,
+    description TEXT,
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TRIGGER trg_brain_config_updated_at
+    BEFORE UPDATE ON brain_config FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
+
+-- ============================================================
+-- team_members
+-- ============================================================
+CREATE TABLE team_members (
+    slug             TEXT PRIMARY KEY,
+    display_name     TEXT NOT NULL,
+    role             TEXT NOT NULL,
+    persona          TEXT NOT NULL,
+    body             TEXT NOT NULL,
+    summary          TEXT,
+    capabilities     TEXT[] DEFAULT '{}',
+    always_inject    BOOLEAN NOT NULL DEFAULT FALSE,
+    project_context  TEXT,
+    model_tier       TEXT CHECK (model_tier IN ('opus','sonnet','haiku')),
+    status           TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','retired')),
+    tags             TEXT[],
+    embedding        vector(384),
+    embedding_model  TEXT,
+    last_accessed_at TIMESTAMPTZ,
+    access_count     INTEGER NOT NULL DEFAULT 0,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at       TIMESTAMPTZ
+);
+
+CREATE INDEX idx_team_members_status ON team_members(status);
+CREATE INDEX idx_team_members_capabilities ON team_members USING GIN (capabilities);
+CREATE INDEX idx_team_members_always_inject ON team_members(always_inject) WHERE always_inject = TRUE;
+CREATE INDEX idx_team_members_embedding ON team_members USING hnsw (embedding vector_cosine_ops);
+CREATE INDEX idx_team_members_slug_live ON team_members(slug) WHERE deleted_at IS NULL;
+
+CREATE TRIGGER trg_team_members_updated_at
+    BEFORE UPDATE ON team_members FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
+
+-- ============================================================
+-- topic_documents
+-- ============================================================
+CREATE TABLE topic_documents (
+    slug             TEXT PRIMARY KEY,
+    title            TEXT NOT NULL,
+    body             TEXT NOT NULL,
+    topic            TEXT NOT NULL,
+    summary          TEXT,
+    namespace        TEXT NOT NULL DEFAULT 'global',
+    scope            TEXT NOT NULL DEFAULT 'system' CHECK (scope IN ('system','operator','project')),
+    source_path      TEXT,
+    tags             TEXT[],
+    embedding        vector(384),
+    embedding_model  TEXT,
+    last_accessed_at TIMESTAMPTZ,
+    access_count     INTEGER NOT NULL DEFAULT 0,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at       TIMESTAMPTZ
+);
+
+CREATE INDEX idx_topic_documents_topic ON topic_documents(topic);
+CREATE INDEX idx_topic_documents_namespace ON topic_documents(namespace);
+CREATE INDEX idx_topic_documents_updated_at ON topic_documents(updated_at DESC);
+CREATE INDEX idx_topic_documents_slug_live ON topic_documents(slug) WHERE deleted_at IS NULL;
+
+CREATE TRIGGER trg_topic_documents_updated_at
+    BEFORE UPDATE ON topic_documents FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
+
+-- ============================================================
+-- memory_entries
+-- ============================================================
+CREATE TABLE memory_entries (
+    slug             TEXT PRIMARY KEY,
+    entry_type       TEXT NOT NULL,
+    title            TEXT NOT NULL,
+    body             TEXT NOT NULL,
+    summary          TEXT,
+    namespace        TEXT NOT NULL DEFAULT 'global',
+    scope            TEXT NOT NULL DEFAULT 'system' CHECK (scope IN ('system','operator','project')),
+    related_topic    TEXT,
+    tags             TEXT[],
+    occurred_on      DATE,
+    embedding        vector(384),
+    embedding_model  TEXT,
+    last_accessed_at TIMESTAMPTZ,
+    access_count     INTEGER NOT NULL DEFAULT 0,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at       TIMESTAMPTZ
+);
+
+CREATE INDEX idx_memory_entries_type ON memory_entries(entry_type);
+CREATE INDEX idx_memory_entries_namespace ON memory_entries(namespace);
+CREATE INDEX idx_memory_entries_related_topic ON memory_entries(related_topic);
+CREATE INDEX idx_memory_entries_updated_at ON memory_entries(updated_at DESC);
+CREATE INDEX idx_memory_entries_slug_live ON memory_entries(slug) WHERE deleted_at IS NULL;
+
+CREATE TRIGGER trg_memory_entries_updated_at
+    BEFORE UPDATE ON memory_entries FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
+
+-- ============================================================
+-- session_notes (append-only, no soft-delete)
+-- ============================================================
+CREATE TABLE session_notes (
+    slug             TEXT PRIMARY KEY,
+    session_ended_at TIMESTAMPTZ NOT NULL,
+    summary          TEXT NOT NULL,
+    body             TEXT NOT NULL,
+    projects_touched TEXT[],
+    embedding        vector(384),
+    embedding_model  TEXT,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_session_notes_ended_at ON session_notes(session_ended_at DESC);
+
+-- ============================================================
+-- standing_orders
+-- ============================================================
+CREATE TABLE standing_orders (
+    slug             TEXT PRIMARY KEY,
+    title            TEXT NOT NULL,
+    body             TEXT NOT NULL,
+    summary          TEXT,
+    scope            TEXT NOT NULL DEFAULT 'system' CHECK (scope IN ('system','operator','project')),
+    active           BOOLEAN NOT NULL DEFAULT true,
+    trigger_pattern  TEXT,
+    effective_from   DATE,
+    tags             TEXT[],
+    embedding        vector(384),
+    embedding_model  TEXT,
+    last_accessed_at TIMESTAMPTZ,
+    access_count     INTEGER NOT NULL DEFAULT 0,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at       TIMESTAMPTZ
+);
+
+CREATE INDEX idx_standing_orders_active ON standing_orders(active);
+CREATE INDEX idx_standing_orders_slug_live ON standing_orders(slug) WHERE deleted_at IS NULL;
+
+CREATE TRIGGER trg_standing_orders_updated_at
+    BEFORE UPDATE ON standing_orders FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
+
+-- ============================================================
+-- ideas
+-- ============================================================
+CREATE TABLE ideas (
+    slug             TEXT PRIMARY KEY,
+    title            TEXT NOT NULL,
+    status           TEXT NOT NULL CHECK (status IN (
+        'proposed','deferred','approved','built','shipped','rejected'
+    )),
+    category         TEXT,
+    summary          TEXT NOT NULL,
+    body             TEXT,
+    estimated_cost   TEXT,
+    estimated_effort TEXT CHECK (estimated_effort IN ('small','medium','large')),
+    biggest_risk     TEXT,
+    next_action      TEXT,
+    filed_on         DATE NOT NULL,
+    linked_docs      TEXT[],
+    embedding        vector(384),
+    embedding_model  TEXT,
+    last_accessed_at TIMESTAMPTZ,
+    access_count     INTEGER NOT NULL DEFAULT 0,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at       TIMESTAMPTZ
+);
+
+CREATE INDEX idx_ideas_status ON ideas(status);
+CREATE INDEX idx_ideas_category ON ideas(category);
+CREATE INDEX idx_ideas_slug_live ON ideas(slug) WHERE deleted_at IS NULL;
+
+CREATE TRIGGER trg_ideas_updated_at
+    BEFORE UPDATE ON ideas FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
+
+-- ============================================================
+-- operator_intent
+-- ============================================================
+CREATE TABLE operator_intent (
+    slug             TEXT PRIMARY KEY,
+    section          TEXT NOT NULL CHECK (section IN (
+        'identity','core_value','tradeoff','decision_boundary',
+        'success_criterion','do_not_rule'
+    )),
+    title            TEXT NOT NULL,
+    body             TEXT NOT NULL,
+    summary          TEXT,
+    always_inject    BOOLEAN NOT NULL DEFAULT FALSE,
+    scope            TEXT NOT NULL DEFAULT 'operator' CHECK (scope IN ('system','operator','project')),
+    priority         INTEGER,
+    tags             TEXT[],
+    embedding        vector(384),
+    embedding_model  TEXT,
+    last_accessed_at TIMESTAMPTZ,
+    access_count     INTEGER NOT NULL DEFAULT 0,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at       TIMESTAMPTZ
+);
+
+CREATE INDEX idx_operator_intent_section ON operator_intent(section);
+CREATE INDEX idx_operator_intent_slug_live ON operator_intent(slug) WHERE deleted_at IS NULL;
+
+CREATE TRIGGER trg_operator_intent_updated_at
+    BEFORE UPDATE ON operator_intent FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
+
+-- ============================================================
+-- document_chunks
+-- ============================================================
+CREATE TABLE document_chunks (
+    id              BIGSERIAL PRIMARY KEY,
+    source_table    TEXT NOT NULL,
+    source_key      TEXT NOT NULL,
+    chunk_index     INTEGER NOT NULL,
+    heading         TEXT,
+    body            TEXT NOT NULL,
+    embedding       vector(384),
+    embedding_model TEXT NOT NULL DEFAULT 'all-MiniLM-L6-v2',
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (source_table, source_key, chunk_index)
+);
+
+CREATE INDEX idx_document_chunks_source ON document_chunks(source_table, source_key);
+CREATE INDEX idx_document_chunks_embedding ON document_chunks USING hnsw (embedding vector_cosine_ops);
+
+-- ============================================================
+-- document_history
+-- ============================================================
+CREATE TABLE document_history (
+    history_id   BIGSERIAL PRIMARY KEY,
+    source_table TEXT NOT NULL,
+    source_key   TEXT NOT NULL,
+    body         TEXT NOT NULL,
+    edited_by    TEXT,
+    edited_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    change_note  TEXT
+);
+
+CREATE INDEX idx_document_history_source ON document_history(source_table, source_key, edited_at DESC);
+
+-- ============================================================
+-- access_log
+-- ============================================================
+CREATE TABLE access_log (
+    id           BIGSERIAL PRIMARY KEY,
+    source_table TEXT NOT NULL,
+    slug         TEXT NOT NULL,
+    tool         TEXT NOT NULL,
+    accessed_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_access_log_source ON access_log(source_table, slug);
+CREATE INDEX idx_access_log_time ON access_log(accessed_at DESC);

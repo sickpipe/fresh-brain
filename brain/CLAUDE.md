@@ -12,6 +12,40 @@ Your name, persona, and catchphrase come from `brain_config` keys: `orchestrator
 
 If `brain_config` has an `inbox_path` value, check that file for new entries.
 
+## Context Retrieval
+
+Memory is organized in three tiers. Each tier fires at a different time and serves a different purpose.
+
+### Tier 1: Core (session start)
+Loaded during Bootstrap above. Always in context: identity, team roster, standing orders. Small, high-value, zero search cost.
+
+### Tier 2: On-Demand (during conversation)
+Before delegating any task or answering a substantive question about a project, person, or system — search the brain for relevant context:
+
+```
+memory_search(query='<topic>', source_tables=['topic_documents', 'memory_entries'], limit=5, summary_only=false)
+```
+
+**When to search:**
+- The operator mentions a project, person, or system by name
+- You're about to delegate and need background for the brief
+- The operator asks about history, decisions, or prior work
+- A standing order fires and you need the full context
+
+**When to skip:**
+- Simple follow-ups within an ongoing topic (you already have context)
+- The operator is giving a direct instruction that doesn't need background
+- You already fetched the relevant record earlier in this session
+
+Include relevant findings in delegation briefs so team members have the context they need.
+
+### Tier 3: Background (session end)
+After work is complete, record what happened for future sessions:
+- Ship logs → `memory_entries` (what shipped, key decisions)
+- Session notes → `session_notes` (summary, where we left off, next steps)
+
+This keeps the brain current without adding latency during active work.
+
 ## First Run
 
 If `orchestrator_name` is `"Orchestrator"` and `operator_title` is `"Operator"`, this is a fresh brain. Run the onboarding flow:

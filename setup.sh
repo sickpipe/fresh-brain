@@ -154,6 +154,38 @@ fi
 
 echo ""
 
+# ── 5b. Seed applied_migrations ledger ──────────────────────
+# schema.sql contains the full baseline state, so every migration file
+# shipped in the template is already represented. Backfill the runner's
+# ledger so `./scripts/migrate.sh` won't try to re-apply them.
+
+seed_applied_migrations() {
+    local db="$1" mig_dir="$2"
+    [ -d "$mig_dir" ] || return 0
+    for f in "$mig_dir"/*.sql; do
+        [ -e "$f" ] || continue
+        local fname
+        fname=$(basename "$f")
+        psql -d "$db" -q -c \
+            "INSERT INTO applied_migrations (filename) VALUES ('$fname') ON CONFLICT (filename) DO NOTHING" \
+            > /dev/null
+    done
+}
+
+if ! printf '%s\n' "${SKIPPED[@]+"${SKIPPED[@]}"}" | grep -qx "brain"; then
+    info "Seeding Brain applied_migrations ledger..."
+    seed_applied_migrations "brain" "$SCRIPT_DIR/brain/migrations"
+    ok "Brain applied_migrations seeded"
+fi
+
+if ! printf '%s\n' "${SKIPPED[@]+"${SKIPPED[@]}"}" | grep -qx "personal"; then
+    info "Seeding Personal applied_migrations ledger..."
+    seed_applied_migrations "personal" "$SCRIPT_DIR/personal/migrations"
+    ok "Personal applied_migrations seeded"
+fi
+
+echo ""
+
 # ── 6. Summary ────────────────────────────────────────────────
 
 echo "========================================="

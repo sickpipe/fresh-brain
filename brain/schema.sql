@@ -1,4 +1,4 @@
--- Brain Database Schema (v6)
+-- Brain Database Schema (v7)
 -- Generated from live database: 2026-04-28
 -- Source of truth for fresh installs. Kept in sync with migrations.
 --
@@ -10,6 +10,11 @@
 -- v6 (003_session_notes_title_tags.sql): session_notes gains title + tags
 -- columns and session_ended_at becomes nullable so notes can be logged
 -- mid-session.
+--
+-- v7 (004_applied_migrations.sql): adds applied_migrations ledger. The
+-- migrate.sh runner tracks each filename rather than gating on a single
+-- schema_version integer. brain_config.schema_version is now informational
+-- only — bootstrap may still read it but the runner does not.
 
 -- Extensions
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
@@ -347,3 +352,15 @@ CREATE TABLE access_log (
 
 CREATE INDEX idx_access_log_source ON access_log(source_table, slug);
 CREATE INDEX idx_access_log_time ON access_log(accessed_at DESC);
+
+-- ============================================================
+-- applied_migrations: per-filename migration ledger (v7)
+-- ============================================================
+-- The migrate.sh runner consults this table (not brain_config.schema_version)
+-- to decide which migrations to apply. checksum is the sha256 of file
+-- contents at apply time, captured for drift detection.
+CREATE TABLE applied_migrations (
+    filename    TEXT PRIMARY KEY,
+    applied_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    checksum    TEXT
+);

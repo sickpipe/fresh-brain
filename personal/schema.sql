@@ -1,4 +1,4 @@
--- Personal Database Schema (v18)
+-- Personal Database Schema (v19)
 -- Generated from live database: 2026-04-28
 -- Source of truth for fresh installs. Kept in sync with migrations.
 --
@@ -10,6 +10,12 @@
 --   - document_history for version tracking (shared pattern with brain)
 --   - personal_config for self-description (mirrors brain_config)
 --   - Soft-delete via deleted_at only (no is_deleted boolean)
+--
+-- v19 (personal/migrations/001_applied_migrations.sql): adds the
+-- applied_migrations ledger. The migrate.sh runner tracks each filename
+-- rather than gating on MAX(version) from schema_version. schema_version
+-- is now informational only — kept for continuity but no longer consulted
+-- by the runner.
 
 -- ============================================================
 -- Function: touch_updated_at()
@@ -287,3 +293,15 @@ CREATE TABLE document_history (
 );
 
 CREATE INDEX idx_document_history_source ON document_history(source_table, source_key, edited_at DESC);
+
+-- ============================================================
+-- applied_migrations: per-filename migration ledger (v19)
+-- ============================================================
+-- The migrate.sh runner consults this table (not schema_version) to decide
+-- which migrations to apply. checksum is sha256 of file contents at apply
+-- time for drift detection.
+CREATE TABLE applied_migrations (
+    filename    TEXT PRIMARY KEY,
+    applied_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    checksum    TEXT
+);

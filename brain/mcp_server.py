@@ -1,14 +1,4 @@
-"""
-brain/mcp_server.py — Flask MCP server for brain v2.
-
-Endpoints:
-    GET  /health          — liveness (health.py)
-    POST /mcp             — MCP JSON-RPC dispatch (bearer-auth)
-
-Tools (7):
-    memory_search, memory_get, memory_upsert, memory_list_recent,
-    memory_history, memory_rollback, memory_list_capabilities
-"""
+"""brain/mcp_server.py — Flask MCP server for brain v2 (9 tools)."""
 
 import json
 import logging
@@ -25,6 +15,8 @@ from mcp_tools import get as tool_get
 from mcp_tools import history as tool_history
 from mcp_tools import list_capabilities as tool_list_capabilities
 from mcp_tools import list_recent as tool_list_recent
+from mcp_tools import load_core as tool_load_core
+from mcp_tools import patch as tool_patch
 from mcp_tools import rollback as tool_rollback
 from mcp_tools import search as tool_search
 from mcp_tools import upsert as tool_upsert
@@ -121,6 +113,22 @@ TOOLS = {
         "description": (
             "Find team members by capabilities (AND logic). "
             "Args: capabilities (list[str], required)."
+        ),
+    },
+    "memory_load_core": {
+        "fn": tool_load_core,
+        "description": (
+            "Bootstrap tool — returns config, active team roster, "
+            "standing orders, and always-inject operator intent in one call."
+        ),
+    },
+    "memory_patch": {
+        "fn": tool_patch,
+        "description": (
+            "Partial update — modifies only provided fields without replacing "
+            "the whole row. Records history. Args: source_table, slug, "
+            "edited_by (optional), change_note (optional), plus any field "
+            "names as kwargs."
         ),
     },
 }
@@ -248,6 +256,35 @@ def create_app() -> Flask:
             })
         return jsonify(result)
 
+    @app.post("/context-inject")
+    @limiter.limit("120 per minute")
+    def context_inject():
+        """Lightweight search for the UserPromptSubmit auto-injection hook."""
+        if not _check_auth():
+            return jsonify({"error": "unauthorized"}), 401
+        payload = request.get_json(force=True, silent=True) or {}
+        query = payload.get("query", "").strip()
+        if not query:
+            return jsonify({"count": 0, "results": []})
+
+        limit = min(int(payload.get("limit", 3)), 5)
+        conn = get_conn()
+        try:
+            result = tool_search(conn, query=query, limit=limit)
+            conn.commit()
+            for r in result.get("results", []):
+                body = r.get("body", "")
+                r["body_preview"] = body[:800] if body else ""
+                r.pop("body", None)
+                r.pop("persona", None)
+                r.pop("project_context", None)
+            return jsonify(result)
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            put_conn(conn)
+
     return app
 
 
@@ -256,6 +293,6 @@ app = create_app()
 
 if __name__ == "__main__":
     port = int(os.getenv("BRAIN_MCP_PORT", "5050"))
-    logger.info("Starting brain MCP server on 0.0.0.0:%d", port)
+    logger.info("Starting brain MCP server on 127.0.0.1:%d", port)
     logger.info("Bearer token: %s", BRAIN_MCP_TOKEN)
-    app.run(host="0.0.0.0", port=port, debug=False)
+    app.run(host="127.0.0.1", port=port, debug=False)

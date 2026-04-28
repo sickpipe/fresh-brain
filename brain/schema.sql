@@ -1,9 +1,11 @@
--- Brain Database Schema (v4)
+-- Brain Database Schema (v4 + hybrid search additions)
 -- Generated from live database: 2026-04-28
 -- Source of truth for fresh installs. Kept in sync with migrations.
 --
--- SEARCH: Brain uses pgvector semantic search exclusively (all-MiniLM-L6-v2,
--- 384-dim). Full-text search (tsvector/GIN) is intentionally omitted.
+-- SEARCH: Brain uses pgvector semantic search (all-MiniLM-L6-v2, 384-dim)
+-- plus tsvector/GIN full-text search for hybrid retrieval. Every searchable
+-- table has both an HNSW vector index and a generated tsvector column with
+-- GIN index. See migration 002_hybrid_search_and_improvements.sql.
 
 -- Extensions
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
@@ -53,6 +55,12 @@ CREATE TABLE team_members (
     embedding_model  TEXT,
     last_accessed_at TIMESTAMPTZ,
     access_count     INTEGER NOT NULL DEFAULT 0,
+    tsv              tsvector GENERATED ALWAYS AS (
+                         to_tsvector('english',
+                             coalesce(display_name, '') || ' ' ||
+                             coalesce(role, '') || ' ' ||
+                             coalesce(body, ''))
+                     ) STORED,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     deleted_at       TIMESTAMPTZ
@@ -62,6 +70,7 @@ CREATE INDEX idx_team_members_status ON team_members(status);
 CREATE INDEX idx_team_members_capabilities ON team_members USING GIN (capabilities);
 CREATE INDEX idx_team_members_always_inject ON team_members(always_inject) WHERE always_inject = TRUE;
 CREATE INDEX idx_team_members_embedding ON team_members USING hnsw (embedding vector_cosine_ops);
+CREATE INDEX idx_team_members_tsv ON team_members USING GIN (tsv);
 CREATE INDEX idx_team_members_slug_live ON team_members(slug) WHERE deleted_at IS NULL;
 
 CREATE TRIGGER trg_team_members_updated_at
@@ -84,6 +93,11 @@ CREATE TABLE topic_documents (
     embedding_model  TEXT,
     last_accessed_at TIMESTAMPTZ,
     access_count     INTEGER NOT NULL DEFAULT 0,
+    tsv              tsvector GENERATED ALWAYS AS (
+                         to_tsvector('english',
+                             coalesce(title, '') || ' ' ||
+                             coalesce(body, ''))
+                     ) STORED,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     deleted_at       TIMESTAMPTZ
@@ -92,6 +106,8 @@ CREATE TABLE topic_documents (
 CREATE INDEX idx_topic_documents_topic ON topic_documents(topic);
 CREATE INDEX idx_topic_documents_namespace ON topic_documents(namespace);
 CREATE INDEX idx_topic_documents_updated_at ON topic_documents(updated_at DESC);
+CREATE INDEX idx_topic_documents_embedding ON topic_documents USING hnsw (embedding vector_cosine_ops);
+CREATE INDEX idx_topic_documents_tsv ON topic_documents USING GIN (tsv);
 CREATE INDEX idx_topic_documents_slug_live ON topic_documents(slug) WHERE deleted_at IS NULL;
 
 CREATE TRIGGER trg_topic_documents_updated_at
@@ -115,6 +131,11 @@ CREATE TABLE memory_entries (
     embedding_model  TEXT,
     last_accessed_at TIMESTAMPTZ,
     access_count     INTEGER NOT NULL DEFAULT 0,
+    tsv              tsvector GENERATED ALWAYS AS (
+                         to_tsvector('english',
+                             coalesce(title, '') || ' ' ||
+                             coalesce(body, ''))
+                     ) STORED,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     deleted_at       TIMESTAMPTZ
@@ -124,6 +145,8 @@ CREATE INDEX idx_memory_entries_type ON memory_entries(entry_type);
 CREATE INDEX idx_memory_entries_namespace ON memory_entries(namespace);
 CREATE INDEX idx_memory_entries_related_topic ON memory_entries(related_topic);
 CREATE INDEX idx_memory_entries_updated_at ON memory_entries(updated_at DESC);
+CREATE INDEX idx_memory_entries_embedding ON memory_entries USING hnsw (embedding vector_cosine_ops);
+CREATE INDEX idx_memory_entries_tsv ON memory_entries USING GIN (tsv);
 CREATE INDEX idx_memory_entries_slug_live ON memory_entries(slug) WHERE deleted_at IS NULL;
 
 CREATE TRIGGER trg_memory_entries_updated_at
@@ -140,10 +163,17 @@ CREATE TABLE session_notes (
     projects_touched TEXT[],
     embedding        vector(384),
     embedding_model  TEXT,
+    tsv              tsvector GENERATED ALWAYS AS (
+                         to_tsvector('english',
+                             coalesce(summary, '') || ' ' ||
+                             coalesce(body, ''))
+                     ) STORED,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX idx_session_notes_ended_at ON session_notes(session_ended_at DESC);
+CREATE INDEX idx_session_notes_embedding ON session_notes USING hnsw (embedding vector_cosine_ops);
+CREATE INDEX idx_session_notes_tsv ON session_notes USING GIN (tsv);
 
 -- ============================================================
 -- standing_orders
@@ -162,12 +192,19 @@ CREATE TABLE standing_orders (
     embedding_model  TEXT,
     last_accessed_at TIMESTAMPTZ,
     access_count     INTEGER NOT NULL DEFAULT 0,
+    tsv              tsvector GENERATED ALWAYS AS (
+                         to_tsvector('english',
+                             coalesce(title, '') || ' ' ||
+                             coalesce(body, ''))
+                     ) STORED,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     deleted_at       TIMESTAMPTZ
 );
 
 CREATE INDEX idx_standing_orders_active ON standing_orders(active);
+CREATE INDEX idx_standing_orders_embedding ON standing_orders USING hnsw (embedding vector_cosine_ops);
+CREATE INDEX idx_standing_orders_tsv ON standing_orders USING GIN (tsv);
 CREATE INDEX idx_standing_orders_slug_live ON standing_orders(slug) WHERE deleted_at IS NULL;
 
 CREATE TRIGGER trg_standing_orders_updated_at
@@ -195,6 +232,11 @@ CREATE TABLE ideas (
     embedding_model  TEXT,
     last_accessed_at TIMESTAMPTZ,
     access_count     INTEGER NOT NULL DEFAULT 0,
+    tsv              tsvector GENERATED ALWAYS AS (
+                         to_tsvector('english',
+                             coalesce(title, '') || ' ' ||
+                             coalesce(body, coalesce(summary, '')))
+                     ) STORED,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     deleted_at       TIMESTAMPTZ
@@ -202,6 +244,8 @@ CREATE TABLE ideas (
 
 CREATE INDEX idx_ideas_status ON ideas(status);
 CREATE INDEX idx_ideas_category ON ideas(category);
+CREATE INDEX idx_ideas_embedding ON ideas USING hnsw (embedding vector_cosine_ops);
+CREATE INDEX idx_ideas_tsv ON ideas USING GIN (tsv);
 CREATE INDEX idx_ideas_slug_live ON ideas(slug) WHERE deleted_at IS NULL;
 
 CREATE TRIGGER trg_ideas_updated_at
@@ -227,12 +271,19 @@ CREATE TABLE operator_intent (
     embedding_model  TEXT,
     last_accessed_at TIMESTAMPTZ,
     access_count     INTEGER NOT NULL DEFAULT 0,
+    tsv              tsvector GENERATED ALWAYS AS (
+                         to_tsvector('english',
+                             coalesce(title, '') || ' ' ||
+                             coalesce(body, ''))
+                     ) STORED,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     deleted_at       TIMESTAMPTZ
 );
 
 CREATE INDEX idx_operator_intent_section ON operator_intent(section);
+CREATE INDEX idx_operator_intent_embedding ON operator_intent USING hnsw (embedding vector_cosine_ops);
+CREATE INDEX idx_operator_intent_tsv ON operator_intent USING GIN (tsv);
 CREATE INDEX idx_operator_intent_slug_live ON operator_intent(slug) WHERE deleted_at IS NULL;
 
 CREATE TRIGGER trg_operator_intent_updated_at
@@ -266,6 +317,7 @@ CREATE TABLE document_history (
     source_table TEXT NOT NULL,
     source_key   TEXT NOT NULL,
     body         TEXT NOT NULL,
+    snapshot     JSONB NOT NULL,
     edited_by    TEXT,
     edited_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     change_note  TEXT

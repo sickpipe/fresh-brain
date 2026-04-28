@@ -1,11 +1,9 @@
 """
 brain/mcp_tools.py — MCP tool implementations for brain v2.
 
-Seven tools, each a plain function(conn, **args) -> dict:
-    search, get, upsert, list_recent, history, rollback, list_capabilities
-
-The HTTP layer (mcp_server.py) handles JSON-RPC + auth. This file is
-pure DB logic. We never SELECT the `embedding` column in responses.
+Tools: search (in search.py), get, upsert + query tools (in mcp_tools_query.py).
+The HTTP layer (mcp_server.py) handles JSON-RPC + auth.
+We never SELECT the `embedding` column in responses.
 """
 
 import logging
@@ -70,99 +68,7 @@ def _log_access(conn, source_table: str, slug: str, tool: str):
 
 
 # -------------------------------------------------------------------- search
-def search(
-    conn,
-    query: str,
-    source_tables=None,
-    limit: int = 10,
-    summary_only: bool = False,
-) -> dict:
-    """
-    Semantic search via pgvector cosine distance. Two passes:
-      1. Main-embedding probe per requested content table.
-      2. Chunk-embedding probe against document_chunks.
-    Hits deduped by (source_table, slug); best distance wins.
-    """
-    if not query or not query.strip():
-        raise ValueError("search: query is required")
-    tables = source_tables or SEARCHABLE_TABLES
-    for t in tables:
-        if t not in SEARCHABLE_TABLES:
-            raise ValueError(f"search: unknown source_table '{t}'")
-    limit = max(1, min(int(limit), 50))
-
-    qvec = embed(query)
-    qvec_lit = "[" + ",".join(repr(float(x)) for x in qvec) + "]"
-
-    best: dict[tuple[str, str], dict] = {}
-
-    with conn.cursor(cursor_factory=RealDictCursor) as cur:
-        # Pass 1: main embedding probe per content table
-        for t in tables:
-            cur.execute(
-                f"""
-                SELECT '{t}' AS source_table, slug,
-                       (embedding <=> %s::vector) AS distance,
-                       {_cols(t, summary_only)}
-                FROM {t}
-                WHERE embedding IS NOT NULL
-                  {"AND deleted_at IS NULL" if t != "session_notes" else ""}
-                ORDER BY embedding <=> %s::vector
-                LIMIT %s
-                """,
-                (qvec_lit, qvec_lit, limit),
-            )
-            for row in cur.fetchall():
-                key = (t, row["slug"])
-                rd = _row_to_json(dict(row))
-                cur_best = best.get(key)
-                if cur_best is None or rd["distance"] < cur_best["distance"]:
-                    best[key] = rd
-
-        # Pass 2: chunk embedding probe
-        chunk_limit = max(limit * 4, 20)
-        cur.execute(
-            """
-            SELECT source_table, source_key AS slug,
-                   MIN(embedding <=> %s::vector) AS distance
-            FROM document_chunks
-            WHERE source_table = ANY(%s)
-            GROUP BY source_table, source_key
-            ORDER BY distance ASC
-            LIMIT %s
-            """,
-            (qvec_lit, list(tables), chunk_limit),
-        )
-        chunk_hits = cur.fetchall()
-
-        for ch in chunk_hits:
-            t = ch["source_table"]
-            slug = ch["slug"]
-            ch_dist = float(ch["distance"])
-            key = (t, slug)
-            cur_best = best.get(key)
-            if cur_best is not None and cur_best["distance"] <= ch_dist:
-                continue
-            not_deleted = "" if t == "session_notes" else "AND deleted_at IS NULL"
-            cur.execute(
-                f"SELECT '{t}' AS source_table, slug, {_cols(t, summary_only)} "
-                f"FROM {t} WHERE slug = %s {not_deleted}",
-                (slug,),
-            )
-            parent = cur.fetchone()
-            if not parent:
-                continue
-            rd = _row_to_json(dict(parent))
-            rd["distance"] = ch_dist
-            if cur_best is None or ch_dist < cur_best["distance"]:
-                best[key] = rd
-
-    results = sorted(best.values(), key=lambda r: r.get("distance", 1.0))[:limit]
-
-    for r in results:
-        _log_access(conn, r["source_table"], r["slug"], "search")
-
-    return {"query": query, "count": len(results), "results": results}
+from search import search  # noqa: E402, F401
 
 
 # ----------------------------------------------------------------------- get
@@ -187,6 +93,17 @@ def _vec_literal(vec: list[float]) -> str:
     return "[" + ",".join(repr(float(x)) for x in vec) + "]"
 
 
+def _fetch_snapshot(conn, source_table: str, slug: str) -> dict | None:
+    """Fetch full row as dict for history snapshot (excludes embedding)."""
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute(
+            f"SELECT {_cols(source_table)} FROM {source_table} WHERE slug = %s",
+            (slug,),
+        )
+        row = cur.fetchone()
+    return dict(row) if row else None
+
+
 def upsert(
     conn,
     source_table: str,
@@ -196,10 +113,7 @@ def upsert(
     change_note: str | None = None,
     **metadata,
 ) -> dict:
-    """
-    Upsert a row. If slug exists in a versioned table, record history
-    first, then overwrite. Embedding is recomputed on every write.
-    """
+    """Upsert a row. Records full-row snapshot in history before overwrite."""
     if source_table == "brain_config":
         return _upsert_config(conn, slug, body, **metadata)
 
@@ -218,17 +132,13 @@ def upsert(
         )
 
     if source_table in VERSIONED_TABLES:
-        with conn.cursor() as cur:
-            cur.execute(
-                f"SELECT body FROM {source_table} WHERE slug = %s", (slug,)
-            )
-            existing = cur.fetchone()
-        if existing is not None:
+        snapshot = _fetch_snapshot(conn, source_table, slug)
+        if snapshot is not None:
             record_history(
                 conn,
                 source_table=source_table,
                 source_key=slug,
-                body=existing[0],
+                snapshot=snapshot,
                 edited_by=edited_by,
                 change_note=change_note,
             )
@@ -296,5 +206,7 @@ from mcp_tools_query import (  # noqa: E402, F401
     history,
     list_capabilities,
     list_recent,
+    load_core,
+    patch,
     rollback,
 )

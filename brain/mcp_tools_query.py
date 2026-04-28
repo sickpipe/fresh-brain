@@ -2,15 +2,18 @@
 brain/mcp_tools_query.py — Read-only / lightweight MCP tools.
 
 Split from mcp_tools.py for Dark Code 300-line compliance.
-Contains: list_recent, history, rollback, list_capabilities.
+Contains: list_recent, history, rollback, list_capabilities, load_core, patch.
 """
 
 import logging
 
 from psycopg2.extras import RealDictCursor
 
-from mcp_tools import _cols, _log_access, _pk, _row_to_json, upsert
-from tool_tables import RECENCY_COLUMN, TABLE_COLUMNS
+from mcp_tools import _cols, _fetch_snapshot, _log_access, _pk, _row_to_json, _vec_literal, upsert
+from chunking import write_chunks
+from embeddings import EMBEDDING_MODEL, embed
+from history import VERSIONED_TABLES, record_history
+from tool_tables import RECENCY_COLUMN, SUMMARY_COLUMNS, TABLE_COLUMNS, UPSERT_META_COLUMNS
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +67,7 @@ def history(
         )
     else:
         cols = (
-            "history_id, source_table, source_key, body, "
+            "history_id, source_table, source_key, body, snapshot, "
             "edited_by, change_note, edited_at"
         )
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -138,4 +141,111 @@ def list_capabilities(conn, capabilities: list[str]) -> dict:
         "capabilities_query": capabilities,
         "count": len(rows),
         "results": rows,
+    }
+
+
+# ---------------------------------------------------------------- load_core
+def load_core(conn) -> dict:
+    """Single bootstrap call — returns config, active team roster, active standing orders, and always-inject operator intent."""
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute("SELECT key, value, description FROM brain_config ORDER BY key")
+        config = [_row_to_json(dict(r)) for r in cur.fetchall()]
+
+        summary_cols = ", ".join(SUMMARY_COLUMNS["team_members"])
+        cur.execute(
+            f"SELECT {summary_cols} FROM team_members "
+            "WHERE status = 'active' AND deleted_at IS NULL ORDER BY display_name"
+        )
+        team = [_row_to_json(dict(r)) for r in cur.fetchall()]
+
+        summary_cols = ", ".join(SUMMARY_COLUMNS["standing_orders"])
+        cur.execute(
+            f"SELECT {summary_cols} FROM standing_orders "
+            "WHERE active = true AND deleted_at IS NULL ORDER BY updated_at DESC"
+        )
+        orders = [_row_to_json(dict(r)) for r in cur.fetchall()]
+
+        summary_cols = ", ".join(SUMMARY_COLUMNS["operator_intent"])
+        cur.execute(
+            f"SELECT {summary_cols} FROM operator_intent "
+            "WHERE always_inject = true AND deleted_at IS NULL ORDER BY priority"
+        )
+        intent = [_row_to_json(dict(r)) for r in cur.fetchall()]
+
+    return {
+        "config": config,
+        "team_members": team,
+        "standing_orders": orders,
+        "operator_intent": intent,
+    }
+
+
+# ------------------------------------------------------------------- patch
+_PATCHABLE_FIELDS = set()
+for _cols_list in UPSERT_META_COLUMNS.values():
+    _PATCHABLE_FIELDS.update(_cols_list)
+_PATCHABLE_FIELDS.add("body")
+
+
+def patch(
+    conn,
+    source_table: str,
+    slug: str,
+    edited_by: str | None = None,
+    change_note: str | None = None,
+    **fields,
+) -> dict:
+    """Partial update — only modifies provided fields. Records history first."""
+    if source_table not in UPSERT_META_COLUMNS:
+        raise ValueError(f"patch: unknown source_table '{source_table}'")
+    if not slug:
+        raise ValueError("patch: slug is required")
+    if not fields:
+        raise ValueError("patch: at least one field to update is required")
+
+    allowed = set(UPSERT_META_COLUMNS[source_table]) | {"body"}
+    unknown = [k for k in fields if k not in allowed]
+    if unknown:
+        raise ValueError(f"patch: unknown fields for {source_table}: {unknown}")
+
+    snapshot = _fetch_snapshot(conn, source_table, slug)
+    if snapshot is None:
+        raise ValueError(f"patch: no existing row {source_table}/{slug}")
+
+    if source_table in VERSIONED_TABLES:
+        record_history(conn, source_table, slug, snapshot, edited_by, change_note)
+
+    set_clauses = []
+    values = []
+    for field, val in fields.items():
+        set_clauses.append(f"{field} = %s")
+        values.append(val)
+
+    needs_reembed = "body" in fields
+    if needs_reembed:
+        vec = _vec_literal(embed(fields["body"]))
+        set_clauses.append("embedding = %s::vector")
+        values.append(vec)
+        set_clauses.append("embedding_model = %s")
+        values.append(EMBEDDING_MODEL)
+
+    if source_table != "session_notes":
+        set_clauses.append("updated_at = now()")
+
+    values.append(slug)
+    sql = f"UPDATE {source_table} SET {', '.join(set_clauses)} WHERE slug = %s RETURNING slug"
+
+    with conn.cursor() as cur:
+        cur.execute(sql, values)
+        returned = cur.fetchone()
+
+    chunk_count = 0
+    if needs_reembed:
+        chunk_count = write_chunks(conn, source_table, slug, fields["body"])
+
+    return {
+        "source_table": source_table,
+        "slug": returned[0],
+        "patched_fields": list(fields.keys()),
+        "chunk_count": chunk_count,
     }

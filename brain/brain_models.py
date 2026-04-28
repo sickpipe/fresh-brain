@@ -34,7 +34,7 @@ from sqlalchemy import (
     Date,
     ARRAY,
 )
-from sqlalchemy.dialects.postgresql import TIMESTAMP
+from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP, TSVECTOR
 from pgvector.sqlalchemy import Vector
 
 metadata = MetaData()
@@ -68,6 +68,7 @@ team_members = Table(
     Column("tags", ARRAY(Text)),
     Column("embedding", Vector(EMBEDDING_DIM)),
     Column("embedding_model", Text),
+    Column("tsv", TSVECTOR),
     Column("created_at", TIMESTAMP(timezone=True), nullable=False, server_default="now()"),
     Column("updated_at", TIMESTAMP(timezone=True), nullable=False, server_default="now()"),
     Column("deleted_at", TIMESTAMP(timezone=True)),
@@ -90,6 +91,7 @@ topic_documents = Table(
     Column("tags", ARRAY(Text)),
     Column("embedding", Vector(EMBEDDING_DIM)),
     Column("embedding_model", Text),
+    Column("tsv", TSVECTOR),
     Column("created_at", TIMESTAMP(timezone=True), nullable=False, server_default="now()"),
     Column("updated_at", TIMESTAMP(timezone=True), nullable=False, server_default="now()"),
     Column("deleted_at", TIMESTAMP(timezone=True)),
@@ -123,6 +125,7 @@ memory_entries = Table(
     Column("occurred_on", Date),
     Column("embedding", Vector(EMBEDDING_DIM)),
     Column("embedding_model", Text),
+    Column("tsv", TSVECTOR),
     Column("created_at", TIMESTAMP(timezone=True), nullable=False, server_default="now()"),
     Column("updated_at", TIMESTAMP(timezone=True), nullable=False, server_default="now()"),
     Column("deleted_at", TIMESTAMP(timezone=True)),
@@ -148,6 +151,7 @@ session_notes = Table(
     Column("projects_touched", ARRAY(Text)),
     Column("embedding", Vector(EMBEDDING_DIM)),
     Column("embedding_model", Text),
+    Column("tsv", TSVECTOR),
     Column("created_at", TIMESTAMP(timezone=True), nullable=False, server_default="now()"),
 )
 
@@ -174,6 +178,7 @@ standing_orders = Table(
     Column("tags", ARRAY(Text)),
     Column("embedding", Vector(EMBEDDING_DIM)),
     Column("embedding_model", Text),
+    Column("tsv", TSVECTOR),
     Column("created_at", TIMESTAMP(timezone=True), nullable=False, server_default="now()"),
     Column("updated_at", TIMESTAMP(timezone=True), nullable=False, server_default="now()"),
     Column("deleted_at", TIMESTAMP(timezone=True)),
@@ -214,6 +219,7 @@ ideas = Table(
     Column("linked_docs", ARRAY(Text)),
     Column("embedding", Vector(EMBEDDING_DIM)),
     Column("embedding_model", Text),
+    Column("tsv", TSVECTOR),
     Column("created_at", TIMESTAMP(timezone=True), nullable=False, server_default="now()"),
     Column("updated_at", TIMESTAMP(timezone=True), nullable=False, server_default="now()"),
     Column("deleted_at", TIMESTAMP(timezone=True)),
@@ -246,6 +252,7 @@ captain_intent = Table(
     Column("tags", ARRAY(Text)),
     Column("embedding", Vector(EMBEDDING_DIM)),
     Column("embedding_model", Text),
+    Column("tsv", TSVECTOR),
     Column("created_at", TIMESTAMP(timezone=True), nullable=False, server_default="now()"),
     Column("updated_at", TIMESTAMP(timezone=True), nullable=False, server_default="now()"),
     Column("deleted_at", TIMESTAMP(timezone=True)),
@@ -362,6 +369,7 @@ document_history = Table(
     ),
     Column("source_key", Text, nullable=False),
     Column("body", Text, nullable=False),
+    Column("snapshot", JSONB, nullable=False),
     Column("edited_by", Text),
     Column("edited_at", TIMESTAMP(timezone=True), nullable=False, server_default="now()"),
     Column("change_note", Text),

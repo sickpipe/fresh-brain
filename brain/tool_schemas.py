@@ -1,10 +1,4 @@
-"""
-brain/tool_schemas.py — JSON Schema definitions for MCP tools (v2).
-
-Each tool's inputSchema is required by the MCP spec for tools/list.
-Per-table metadata ownership is annotated in descriptions to reduce
-hallucinated cross-table parameters.
-"""
+"""brain/tool_schemas.py — JSON Schema definitions for MCP tools (v2)."""
 
 MEMORY_SEARCH_SCHEMA = {
     "type": "object",
@@ -61,170 +55,44 @@ MEMORY_GET_SCHEMA = {
 MEMORY_UPSERT_SCHEMA = {
     "type": "object",
     "properties": {
-        "source_table": {
-            "type": "string",
-            "description": (
-                "Target content table. Metadata columns are per-table — "
-                "see each column's description for which tables accept it."
-            ),
-        },
-        "slug": {
-            "type": "string",
-            "description": "Row slug (immutable once written). For brain_config, this is the key.",
-        },
-        "body": {
-            "type": "string",
-            "description": "Full markdown body. For brain_config, this is the value.",
-        },
-        "edited_by": {
-            "type": "string",
-            "description": "Who made the edit",
-            "default": "claude",
-        },
-        "change_note": {
-            "type": "string",
-            "description": "Short explanation of what changed",
-        },
-        "title": {
-            "type": "string",
-            "description": "Row title (topic_documents, memory_entries, standing_orders, ideas, operator_intent)",
-        },
-        "display_name": {
-            "type": "string",
-            "description": "Display name (team_members only)",
-        },
-        "role": {
-            "type": "string",
-            "description": "Role title (team_members only)",
-        },
-        "persona": {
-            "type": "string",
-            "description": "Persona text (team_members only)",
-        },
-        "summary": {
-            "type": "string",
-            "description": "One-line summary for lightweight listings (all content tables)",
-        },
-        "capabilities": {
-            "type": "array",
-            "items": {"type": "string"},
-            "description": "Skill tags for capability-based lookup (team_members only)",
-        },
-        "always_inject": {
-            "type": "boolean",
-            "description": "Auto-inject summary at session start (team_members, operator_intent)",
-        },
-        "project_context": {
-            "type": "string",
-            "description": "Operator-specific project context, separate from body (team_members only)",
-        },
-        "model_tier": {
-            "type": "string",
-            "description": "LLM tier: opus/sonnet/haiku (team_members only)",
-        },
-        "status": {
-            "type": "string",
-            "description": "active or retired (team_members only)",
-        },
-        "tags": {
-            "type": "array",
-            "items": {"type": "string"},
-            "description": "Freeform tags (team_members, topic_documents, memory_entries, standing_orders, operator_intent)",
-        },
-        "entry_type": {
-            "type": "string",
-            "description": "Memory type (memory_entries only): user_pref, architecture_fact, ship_log, tool_note, trading_context, lesson_learned",
-        },
-        "section": {
-            "type": "string",
-            "description": "Intent section (operator_intent only): identity, core_value, tradeoff, decision_boundary, success_criterion, do_not_rule",
-        },
-        "topic": {
-            "type": "string",
-            "description": "Topic category (topic_documents only)",
-        },
-        "namespace": {
-            "type": "string",
-            "description": "Project namespace, default 'global' (topic_documents, memory_entries only)",
-        },
-        "scope": {
-            "type": "string",
-            "description": "Scope tag: system/operator/project (topic_documents, memory_entries, standing_orders, operator_intent)",
-        },
-        "source_path": {
-            "type": "string",
-            "description": "File path reference (topic_documents only)",
-        },
-        "related_topic": {
-            "type": "string",
-            "description": "Related topic slug (memory_entries only)",
-        },
-        "occurred_on": {
-            "type": "string",
-            "format": "date",
-            "description": "Date the event occurred (memory_entries only)",
-        },
-        "trigger_pattern": {
-            "type": "string",
-            "description": "Human-readable trigger description (standing_orders only)",
-        },
-        "active": {
-            "type": "boolean",
-            "description": "Whether the order is active (standing_orders only)",
-        },
-        "effective_from": {
-            "type": "string",
-            "format": "date",
-            "description": "Effective date (standing_orders only)",
-        },
-        "priority": {
-            "type": "integer",
-            "description": "Sort priority (operator_intent only)",
-        },
-        "category": {
-            "type": "string",
-            "description": "Idea category (ideas only)",
-        },
-        "estimated_cost": {
-            "type": "string",
-            "description": "Cost estimate (ideas only)",
-        },
-        "estimated_effort": {
-            "type": "string",
-            "description": "Effort: small/medium/large (ideas only)",
-        },
-        "biggest_risk": {
-            "type": "string",
-            "description": "Primary risk (ideas only)",
-        },
-        "next_action": {
-            "type": "string",
-            "description": "Next action item (ideas only)",
-        },
-        "filed_on": {
-            "type": "string",
-            "format": "date",
-            "description": "Filing date (ideas only)",
-        },
-        "linked_docs": {
-            "type": "array",
-            "items": {"type": "string"},
-            "description": "Related document slugs (ideas only)",
-        },
-        "session_ended_at": {
-            "type": "string",
-            "format": "date-time",
-            "description": "Session end time (session_notes only)",
-        },
-        "projects_touched": {
-            "type": "array",
-            "items": {"type": "string"},
-            "description": "Projects touched in session (session_notes only)",
-        },
-        "description": {
-            "type": "string",
-            "description": "Config description (brain_config only)",
-        },
+        "source_table": {"type": "string", "description": "Target content table. Metadata columns are per-table."},
+        "slug": {"type": "string", "description": "Row slug (immutable). For brain_config, this is the key."},
+        "body": {"type": "string", "description": "Full markdown body. For brain_config, this is the value."},
+        "edited_by": {"type": "string", "description": "Who made the edit", "default": "claude"},
+        "change_note": {"type": "string", "description": "Short explanation of what changed"},
+        "title": {"type": "string", "description": "Row title (topic_documents, memory_entries, standing_orders, ideas, operator_intent)"},
+        "display_name": {"type": "string", "description": "Display name (team_members)"},
+        "role": {"type": "string", "description": "Role title (team_members)"},
+        "persona": {"type": "string", "description": "Persona text (team_members)"},
+        "summary": {"type": "string", "description": "One-line summary (all content tables)"},
+        "capabilities": {"type": "array", "items": {"type": "string"}, "description": "Skill tags (team_members)"},
+        "always_inject": {"type": "boolean", "description": "Auto-inject at session start (team_members, operator_intent)"},
+        "project_context": {"type": "string", "description": "Project context (team_members)"},
+        "model_tier": {"type": "string", "description": "LLM tier: opus/sonnet/haiku (team_members)"},
+        "status": {"type": "string", "description": "active or retired (team_members)"},
+        "tags": {"type": "array", "items": {"type": "string"}, "description": "Freeform tags (multiple tables)"},
+        "entry_type": {"type": "string", "description": "Memory type (memory_entries): user_pref, ship_log, lesson_learned, etc."},
+        "section": {"type": "string", "description": "Intent section (operator_intent): identity, core_value, tradeoff, etc."},
+        "topic": {"type": "string", "description": "Topic category (topic_documents)"},
+        "namespace": {"type": "string", "description": "Project namespace (topic_documents, memory_entries)"},
+        "scope": {"type": "string", "description": "system/operator/project (topic_documents, memory_entries, standing_orders, operator_intent)"},
+        "source_path": {"type": "string", "description": "File path reference (topic_documents)"},
+        "related_topic": {"type": "string", "description": "Related topic slug (memory_entries)"},
+        "occurred_on": {"type": "string", "format": "date", "description": "Event date (memory_entries)"},
+        "trigger_pattern": {"type": "string", "description": "Trigger description (standing_orders)"},
+        "active": {"type": "boolean", "description": "Active flag (standing_orders)"},
+        "effective_from": {"type": "string", "format": "date", "description": "Effective date (standing_orders)"},
+        "priority": {"type": "integer", "description": "Sort priority (operator_intent)"},
+        "category": {"type": "string", "description": "Idea category (ideas)"},
+        "estimated_cost": {"type": "string", "description": "Cost estimate (ideas)"},
+        "estimated_effort": {"type": "string", "description": "Effort: small/medium/large (ideas)"},
+        "biggest_risk": {"type": "string", "description": "Primary risk (ideas)"},
+        "next_action": {"type": "string", "description": "Next action item (ideas)"},
+        "filed_on": {"type": "string", "format": "date", "description": "Filing date (ideas)"},
+        "linked_docs": {"type": "array", "items": {"type": "string"}, "description": "Related doc slugs (ideas)"},
+        "session_ended_at": {"type": "string", "format": "date-time", "description": "Session end time (session_notes)"},
+        "projects_touched": {"type": "array", "items": {"type": "string"}, "description": "Projects touched (session_notes)"},
+        "description": {"type": "string", "description": "Config description (brain_config)"},
     },
     "required": ["source_table", "slug", "body"],
 }
@@ -319,6 +187,32 @@ MEMORY_LIST_CAPABILITIES_SCHEMA = {
     "required": ["capabilities"],
 }
 
+MEMORY_LOAD_CORE_SCHEMA = {
+    "type": "object",
+    "properties": {},
+    "required": [],
+}
+
+MEMORY_PATCH_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "source_table": {"type": "string", "description": "Target content table (same as upsert, excluding brain_config)."},
+        "slug": {"type": "string", "description": "Slug of the existing row to patch."},
+        "edited_by": {"type": "string", "description": "Who made the edit"},
+        "change_note": {"type": "string", "description": "Short explanation of what changed"},
+        "body": {"type": "string", "description": "New body text (triggers re-embedding)"},
+        "title": {"type": "string", "description": "Updated title"},
+        "summary": {"type": "string", "description": "Updated summary"},
+        "status": {"type": "string", "description": "Updated status"},
+        "active": {"type": "boolean", "description": "Updated active flag"},
+        "tags": {"type": "array", "items": {"type": "string"}, "description": "Updated tags"},
+        "priority": {"type": "integer", "description": "Updated priority"},
+        "always_inject": {"type": "boolean", "description": "Updated always_inject"},
+        "capabilities": {"type": "array", "items": {"type": "string"}, "description": "Updated capabilities"},
+    },
+    "required": ["source_table", "slug"],
+}
+
 SCHEMAS = {
     "memory_search": MEMORY_SEARCH_SCHEMA,
     "memory_get": MEMORY_GET_SCHEMA,
@@ -327,4 +221,6 @@ SCHEMAS = {
     "memory_history": MEMORY_HISTORY_SCHEMA,
     "memory_rollback": MEMORY_ROLLBACK_SCHEMA,
     "memory_list_capabilities": MEMORY_LIST_CAPABILITIES_SCHEMA,
+    "memory_load_core": MEMORY_LOAD_CORE_SCHEMA,
+    "memory_patch": MEMORY_PATCH_SCHEMA,
 }

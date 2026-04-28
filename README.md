@@ -9,7 +9,17 @@ Sets up a **brain** database (AI memory, team members, standing orders) and a **
 - **Brain MCP Server** -- Postgres + pgvector memory server with semantic search, version history, and team member profiles
 - **Personal MCP Server** -- Task/mission tracker with full-text search, workspaces, and document history
 - **3 Starter Team Members** -- Orchestrator, Developer, and Researcher ready to go
-- **Starter Packs** -- Optional additional team members (health, finance, creative, legal, ops) offered during first-run setup
+- **Starter Packs** -- Optional add-ons offered during first-run setup: Business (CRM/ERP), additional team members (health, finance, creative, ops), and standing orders
+
+## How It Works
+
+The orchestrator uses a three-tier memory retrieval system:
+
+- **Core** — At session start, the orchestrator loads its identity, team roster, and standing orders from the brain. Always in context, zero search cost.
+- **On-Demand** — During conversation, the orchestrator searches the brain when you mention a project, person, or system. Results are included in delegation briefs so team members have full context.
+- **Background** — At session end, the orchestrator records what happened (ship logs, session notes) so future sessions pick up where you left off.
+
+All retrieval is agent-driven — the orchestrator decides when to search based on conversation context. No hooks, no latency penalty on every prompt.
 
 ## Quick Start
 

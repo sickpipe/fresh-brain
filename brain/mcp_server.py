@@ -4,7 +4,6 @@ brain/mcp_server.py — Flask MCP server for brain v2.
 Endpoints:
     GET  /health          — liveness (health.py)
     POST /mcp             — MCP JSON-RPC dispatch (bearer-auth)
-    POST /context-inject  — lightweight search for auto-injection hook
 
 Tools (7):
     memory_search, memory_get, memory_upsert, memory_list_recent,
@@ -248,35 +247,6 @@ def create_app() -> Flask:
                 },
             })
         return jsonify(result)
-
-    @app.post("/context-inject")
-    @limiter.limit("120 per minute")
-    def context_inject():
-        """Lightweight search for the UserPromptSubmit auto-injection hook."""
-        if not _check_auth():
-            return jsonify({"error": "unauthorized"}), 401
-        payload = request.get_json(force=True, silent=True) or {}
-        query = payload.get("query", "").strip()
-        if not query:
-            return jsonify({"count": 0, "results": []})
-
-        limit = min(int(payload.get("limit", 3)), 5)
-        conn = get_conn()
-        try:
-            result = tool_search(conn, query=query, limit=limit)
-            conn.commit()
-            for r in result.get("results", []):
-                body = r.get("body", "")
-                r["body_preview"] = body[:800] if body else ""
-                r.pop("body", None)
-                r.pop("persona", None)
-                r.pop("project_context", None)
-            return jsonify(result)
-        except Exception:
-            conn.rollback()
-            raise
-        finally:
-            put_conn(conn)
 
     return app
 

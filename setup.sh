@@ -56,6 +56,33 @@ else
     fail "Python 3 not found. Install it and try again."
 fi
 
+# Platform-aware Python selection.
+# PyTorch dropped Intel Mac support after 2.2.x, and torch 2.2.x has no
+# Python 3.13 wheels. Brain's embedding model (sentence-transformers)
+# requires torch, so on Intel macOS we must run Python <= 3.12.
+PYTHON_BIN="python3"
+sys_arch="$(uname -m)"
+sys_os="$(uname -s)"
+default_py_ver=$(python3 -c 'import sys;print("%d.%d"%sys.version_info[:2])' 2>/dev/null || echo "0.0")
+default_py_major=${default_py_ver%%.*}
+default_py_minor=${default_py_ver##*.}
+
+if [ "$sys_os" = "Darwin" ] && [ "$sys_arch" = "x86_64" ] \
+   && [ "$default_py_major" -ge 3 ] && [ "$default_py_minor" -ge 13 ]; then
+    brew_py312="/usr/local/opt/python@3.12/libexec/bin/python3"
+    if [ -x "$brew_py312" ]; then
+        PYTHON_BIN="$brew_py312"
+        ok "Intel Mac detected — using python@3.12 from brew (torch on Intel macOS only supports up to Python 3.12)"
+    else
+        fail "Intel Mac with Python 3.13+ detected. PyTorch dropped Intel Mac support after 2.2.x,
+       and torch 2.2.x doesn't have Python 3.13 wheels. Fresh Brain's brain server uses
+       local embeddings via sentence-transformers, which requires torch.
+
+       Fix: brew install python@3.12
+       Then re-run ./setup.sh."
+    fi
+fi
+
 # Schema files exist
 for f in "$BRAIN_SCHEMA" "$PERSONAL_SCHEMA"; do
     [ -f "$f" ] || fail "Schema file not found: $f"
@@ -200,8 +227,8 @@ if [ -x "$VENV_DIR/bin/python" ]; then
 fi
 
 if [ "$needs_new_venv" = true ]; then
-    info "Creating Python virtualenv at .venv..."
-    python3 -m venv "$VENV_DIR"
+    info "Creating Python virtualenv at .venv (using $PYTHON_BIN)..."
+    "$PYTHON_BIN" -m venv "$VENV_DIR"
     ok "venv created"
 fi
 

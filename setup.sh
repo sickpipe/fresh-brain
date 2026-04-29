@@ -74,29 +74,81 @@ else
 fi
 
 # Platform-aware Python selection.
-# PyTorch dropped Intel Mac support after 2.2.x, and torch 2.2.x has no
-# Python 3.13 wheels. Brain's embedding model (sentence-transformers)
-# requires torch, so on Intel macOS we must run Python <= 3.12.
+#
+# Two distinct macOS edge cases require falling back to brew's python@3.12:
+#
+#   1. Default python3 is x86_64 on macOS with version >= 3.13.
+#      PyTorch dropped x86_64 macOS support after 2.2.x, and torch 2.2.x has
+#      no Python 3.13 wheels. This hits both real Intel Macs AND Apple
+#      Silicon Macs whose `python3` came from a Rosetta/Intel brew at
+#      /usr/local/ — `uname -m` says arm64 but the Python binary is x86_64.
+#      So we check Python's architecture (platform.machine()), not the
+#      hardware's (uname -m).
+#
+#   2. Default python3 is too old (< 3.10) on macOS. Fresh Brain itself
+#      requires 3.10+. Same fallback path: prefer brew's python@3.12.
+#
+# In both cases the fix is identical — locate python@3.12 under whichever
+# brew prefix exists (Apple Silicon /opt/homebrew or Intel/Rosetta
+# /usr/local) and use it.
 PYTHON_BIN="python3"
-sys_arch="$(uname -m)"
 sys_os="$(uname -s)"
 default_py_ver=$(python3 -c 'import sys;print("%d.%d"%sys.version_info[:2])' 2>/dev/null || echo "0.0")
 default_py_major=${default_py_ver%%.*}
 default_py_minor=${default_py_ver##*.}
+# Architecture of the running Python interpreter (NOT of the hardware).
+# Returns x86_64 if Python is Rosetta/Intel-compiled, arm64 if native
+# Apple Silicon, etc. This is the canonical way and works on Linux too.
+default_py_arch=$(python3 -c 'import platform;print(platform.machine())' 2>/dev/null || echo "unknown")
 
-if [ "$sys_os" = "Darwin" ] && [ "$sys_arch" = "x86_64" ] \
+# find_brew_py312: echo path to a brew-installed python@3.12 if one
+# exists under either prefix; print nothing otherwise.
+find_brew_py312() {
+    for p in /opt/homebrew/opt/python@3.12/libexec/bin/python3 \
+             /usr/local/opt/python@3.12/libexec/bin/python3; do
+        if [ -x "$p" ]; then
+            echo "$p"
+            return 0
+        fi
+    done
+    return 1
+}
+
+needs_py312_fallback=false
+fallback_reason=""
+
+# Case 1: macOS + x86_64 Python + Python >= 3.13 -> torch unavailable
+if [ "$sys_os" = "Darwin" ] && [ "$default_py_arch" = "x86_64" ] \
    && [ "$default_py_major" -ge 3 ] && [ "$default_py_minor" -ge 13 ]; then
-    brew_py312="/usr/local/opt/python@3.12/libexec/bin/python3"
-    if [ -x "$brew_py312" ]; then
-        PYTHON_BIN="$brew_py312"
-        ok "Intel Mac detected — using python@3.12 from brew (torch on Intel macOS only supports up to Python 3.12)"
-    else
-        fail "Intel Mac with Python 3.13+ detected. PyTorch dropped Intel Mac support after 2.2.x,
-       and torch 2.2.x doesn't have Python 3.13 wheels. Fresh Brain's brain server uses
-       local embeddings via sentence-transformers, which requires torch.
+    needs_py312_fallback=true
+    fallback_reason="x86_64 Python 3.13+ on macOS — PyTorch dropped x86_64 macOS support after 2.2.x, and torch 2.2.x has no Python 3.13 wheels"
+fi
 
-       Fix: brew install python@3.12
-       Then re-run ./setup.sh."
+# Case 2: macOS + Python < 3.10 (regardless of architecture) -> Fresh Brain itself needs 3.10+
+if [ "$sys_os" = "Darwin" ] && \
+   { [ "$default_py_major" -lt 3 ] || \
+     { [ "$default_py_major" -eq 3 ] && [ "$default_py_minor" -lt 10 ]; }; }; then
+    needs_py312_fallback=true
+    fallback_reason="default python3 is $default_py_ver (Fresh Brain requires 3.10+)"
+fi
+
+if [ "$needs_py312_fallback" = true ]; then
+    if brew_py312=$(find_brew_py312); then
+        PYTHON_BIN="$brew_py312"
+        ok "Using $brew_py312 — $fallback_reason"
+    else
+        fail "$fallback_reason.
+
+       Fresh Brain's brain server uses local embeddings via
+       sentence-transformers, which requires torch. The supported workaround
+       is to install python@3.12 via Homebrew:
+
+           brew install python@3.12
+
+       After installing, re-run ./setup.sh. setup.sh will look for
+       python@3.12 under either brew prefix:
+           /opt/homebrew/opt/python@3.12/libexec/bin/python3   (Apple Silicon brew)
+           /usr/local/opt/python@3.12/libexec/bin/python3      (Intel/Rosetta brew)"
     fi
 fi
 

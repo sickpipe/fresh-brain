@@ -86,6 +86,19 @@ Restart Claude Code. The orchestrator will detect a fresh brain and walk you thr
 - Python 3.10+
 - `pip install -r brain/requirements.txt` and `pip install -r personal/requirements.txt`
 
+### Choosing your Postgres version (macOS / Homebrew)
+
+`brew install pgvector` only ships extension files for the Postgres versions Homebrew has built it against on your machine. If you install a Postgres version pgvector wasn't built for, `setup.sh` will fail at the pgvector check even though both packages installed cleanly.
+
+Before `brew install postgresql@<N>`, check which versions pgvector supports:
+
+```bash
+ls $(brew --prefix pgvector)/share/
+# e.g. postgresql@17  postgresql@18  -> pick @17 or @18, NOT @16
+```
+
+Pick a Postgres version that appears in that listing.
+
 ## Structure
 
 ```

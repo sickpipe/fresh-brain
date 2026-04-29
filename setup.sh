@@ -8,6 +8,23 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BRAIN_SCHEMA="$SCRIPT_DIR/brain/schema.sql"
 PERSONAL_SCHEMA="$SCRIPT_DIR/personal/schema.sql"
 
+# Postgres connection settings. psql/createdb/dropdb honor these natively;
+# we read them once so we can also bake them into the .env DSNs in section 7.
+PGHOST="${PGHOST:-localhost}"
+PGPORT="${PGPORT:-5432}"
+export PGHOST PGPORT
+
+# Build a DSN that omits the port when it's the default (cleaner) and
+# includes it otherwise. Used by .env writers below.
+pg_dsn() {
+    local db="$1"
+    if [ "$PGPORT" = "5432" ]; then
+        echo "postgresql://${PGHOST}/${db}"
+    else
+        echo "postgresql://${PGHOST}:${PGPORT}/${db}"
+    fi
+}
+
 # Colors
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
 
@@ -289,7 +306,7 @@ fi
 
 if [ "$brain_overwrite" = true ]; then
     BRAIN_MCP_TOKEN=$(openssl rand -hex 32)
-    write_env_file "$BRAIN_ENV" "DATABASE_BRAIN_APP_URL=postgresql://localhost/brain
+    write_env_file "$BRAIN_ENV" "DATABASE_BRAIN_APP_URL=$(pg_dsn brain)
 BRAIN_MCP_TOKEN=$BRAIN_MCP_TOKEN
 BRAIN_MCP_PORT=5050"
     ok "Wrote brain/.env (token: $(short_token "$BRAIN_MCP_TOKEN"))"
@@ -317,8 +334,8 @@ fi
 if [ "$personal_overwrite" = true ]; then
     PERSONAL_MCP_TOKEN=$(openssl rand -hex 32)
     PERSONAL_SECRET_KEY=$(openssl rand -hex 32)
-    write_env_file "$PERSONAL_ENV" "DATABASE_PERSONAL_APP_URL=postgresql://localhost/personal
-DATABASE_BRAIN_APP_URL=postgresql://localhost/brain
+    write_env_file "$PERSONAL_ENV" "DATABASE_PERSONAL_APP_URL=$(pg_dsn personal)
+DATABASE_BRAIN_APP_URL=$(pg_dsn brain)
 SECRET_KEY=$PERSONAL_SECRET_KEY
 PORT=5001
 PERSONAL_MCP_TOKEN=$PERSONAL_MCP_TOKEN

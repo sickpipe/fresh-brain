@@ -67,7 +67,7 @@ else
 fi
 
 # Python 3
-if command -v python3 &>/dev/null; then
+if command -v python3 >/dev/null 2>&1; then
     ok "Python 3 found: $(python3 --version 2>&1)"
 else
     fail "Python 3 not found. Install it and try again."
@@ -118,13 +118,16 @@ for db in "${DATABASES[@]}"; do
     if psql -lqt 2>/dev/null | cut -d\| -f1 | grep -qw "$db"; then
         warn "Database '$db' already exists."
         read -rp "  Drop and recreate? (y/N): " answer
-        if [[ "${answer,,}" == "y" ]]; then
-            dropdb "$db"
-            createdb "$db"
-            CREATED+=("$db")
-        else
-            SKIPPED+=("$db")
-        fi
+        case "$answer" in
+            [yY]|[yY][eE][sS])
+                dropdb "$db"
+                createdb "$db"
+                CREATED+=("$db")
+                ;;
+            *)
+                SKIPPED+=("$db")
+                ;;
+        esac
     else
         createdb "$db"
         CREATED+=("$db")
@@ -291,7 +294,8 @@ PERSONAL_ENV="$SCRIPT_DIR/personal/.env"
 brain_overwrite=true
 if [ -f "$BRAIN_ENV" ]; then
     read -rp "  Overwrite brain/.env? (y/N): " ans
-    if [[ "${ans,,}" != "y" ]]; then
+    ans_lc=$(printf '%s' "$ans" | tr '[:upper:]' '[:lower:]')
+    if [ "$ans_lc" != "y" ] && [ "$ans_lc" != "yes" ]; then
         brain_overwrite=false
         existing_token=$(read_env_var "$BRAIN_ENV" "BRAIN_MCP_TOKEN")
         if [ -n "$existing_token" ]; then
@@ -316,7 +320,8 @@ fi
 personal_overwrite=true
 if [ -f "$PERSONAL_ENV" ]; then
     read -rp "  Overwrite personal/.env? (y/N): " ans
-    if [[ "${ans,,}" != "y" ]]; then
+    ans_lc=$(printf '%s' "$ans" | tr '[:upper:]' '[:lower:]')
+    if [ "$ans_lc" != "y" ] && [ "$ans_lc" != "yes" ]; then
         personal_overwrite=false
         existing_token=$(read_env_var "$PERSONAL_ENV" "PERSONAL_MCP_TOKEN")
         existing_secret=$(read_env_var "$PERSONAL_ENV" "SECRET_KEY")

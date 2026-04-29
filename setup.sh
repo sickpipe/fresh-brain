@@ -301,7 +301,16 @@ fi
 
 echo ""
 
-# ── 8. Summary ────────────────────────────────────────────────
+# ── 8. Start MCP servers ────────────────────────────────────
+# Launch logic lives in scripts/start-mcp.sh so it can also be invoked
+# standalone (e.g. after a reboot).
+
+info "Launching MCP daemons..."
+bash "$SCRIPT_DIR/scripts/start-mcp.sh"
+
+echo ""
+
+# ── 9. Summary ────────────────────────────────────────────────
 
 echo "========================================="
 echo "  Setup Complete"

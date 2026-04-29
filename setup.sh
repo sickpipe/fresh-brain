@@ -363,8 +363,15 @@ echo ""
 # Use `claude mcp add` so the operator doesn't have to hand-edit
 # ~/.claude.json. Captain approved user scope (roaming, available in
 # every working directory).
+#
+# Set FRESH_BRAIN_SKIP_MCP_REGISTER=1 to bypass this section — useful
+# when running a sandbox install on a host that already has production
+# brain/personal entries at user scope (e.g. test harness on the
+# operator's main machine).
 
-if command -v claude >/dev/null 2>&1; then
+if [ "${FRESH_BRAIN_SKIP_MCP_REGISTER:-0}" = "1" ]; then
+    warn "FRESH_BRAIN_SKIP_MCP_REGISTER=1 — skipping Claude Code MCP registration"
+elif command -v claude >/dev/null 2>&1; then
     info "Registering MCP servers with Claude Code (user scope)..."
 
     # brain

@@ -26,45 +26,20 @@ All retrieval is agent-driven — the orchestrator decides when to search based 
 ```bash
 git clone https://github.com/sickpipe/fresh-brain.git
 cd fresh-brain
-chmod +x setup.sh
 ./setup.sh
 ```
 
-The setup script will:
+`setup.sh` is end-to-end. It will:
 
 1. Ask your name, title, timezone, and how the AI should address you
-2. Check prerequisites (PostgreSQL, pgvector, Python 3)
+2. Check prerequisites (PostgreSQL, pgvector, Python 3.10+)
 3. Create and seed the `brain` and `personal` databases
-4. Apply schemas and insert starter data
+4. Build a project-local `.venv` and `pip install` both requirements files (torch is large — first run takes a few minutes)
+5. Generate `brain/.env` and `personal/.env` with random bearer tokens
+6. Launch the brain (port 5050) and personal (port 5051) MCP daemons via `scripts/start-mcp.sh`, polling `/health` until both come up
+7. Register both servers with Claude Code at user scope via `claude mcp add --transport http`
 
-After setup, configure your Claude Code MCP servers by adding to `~/.claude.json`:
-
-```json
-{
-  "mcpServers": {
-    "brain": {
-      "command": "python3",
-      "args": ["/path/to/fresh-brain/brain/mcp_server.py"],
-      "env": {
-        "DATABASE_BRAIN_APP_URL": "postgresql://localhost/brain",
-        "BRAIN_MCP_TOKEN": "your-token",
-        "BRAIN_MCP_PORT": "5050"
-      }
-    },
-    "personal": {
-      "command": "python3",
-      "args": ["/path/to/fresh-brain/personal/mcp_server.py"],
-      "env": {
-        "DATABASE_PERSONAL_APP_URL": "postgresql://localhost/personal",
-        "PERSONAL_MCP_TOKEN": "your-token",
-        "PERSONAL_MCP_PORT": "5051"
-      }
-    }
-  }
-}
-```
-
-Restart Claude Code. The orchestrator will detect a fresh brain and walk you through onboarding.
+When the script finishes, restart Claude Code (Cmd+Q then reopen). The orchestrator will detect a fresh brain and walk you through onboarding.
 
 ## Brain Tools
 
@@ -84,7 +59,8 @@ Restart Claude Code. The orchestrator will detect a fresh brain and walk you thr
 
 - PostgreSQL with [pgvector](https://github.com/pgvector/pgvector) extension
 - Python 3.10+
-- `pip install -r brain/requirements.txt` and `pip install -r personal/requirements.txt`
+
+`setup.sh` builds its own `.venv` and installs Python deps automatically — no manual `pip install` step.
 
 ### Choosing your Postgres version (macOS / Homebrew)
 
@@ -103,10 +79,13 @@ Pick a Postgres version that appears in that listing.
 
 ```
 fresh-brain/
-  brain/          # AI memory MCP server (hybrid semantic + full-text search)
-  personal/       # Mission/task MCP server (full-text search)
-  scripts/        # Database migration runner
-  setup.sh        # First-run setup
+  brain/             # AI memory MCP server (hybrid semantic + full-text search)
+  personal/          # Mission/task MCP server (full-text search)
+  scripts/
+    migrate.sh       # Apply pending DB migrations
+    start-mcp.sh     # Idempotent daemon launcher (used by setup, also standalone)
+    reset.sh         # Tear down everything for a clean reinstall
+  setup.sh           # End-to-end first-run setup
 ```
 
 ## Search
@@ -128,6 +107,13 @@ Results are merged using reciprocal rank fusion (RRF), so exact matches on proje
 ## Onboarding
 
 See [brain/CLAUDE.md](brain/CLAUDE.md) for the full orchestrator bootstrap flow, delegation framework, and team management protocol.
+
+## Troubleshooting
+
+- **Verify MCP servers are registered with Claude Code:** `claude mcp list` — you should see `brain` and `personal` entries pointing at `http://127.0.0.1:5050/mcp` and `:5051/mcp`.
+- **Inspect daemon logs:** `tail brain/mcp.log` and `tail personal/mcp.log`. PIDs are recorded in `brain/mcp.pid` / `personal/mcp.pid`.
+- **Restart daemons after a reboot:** `./scripts/start-mcp.sh` (idempotent — skips servers that are already running and healthy).
+- **Full clean reset:** `./scripts/reset.sh` stops daemons, drops databases, removes Claude Code MCP entries, and deletes `.venv` + `.env` + log/pid files. Then re-run `./setup.sh`.
 
 ## License
 

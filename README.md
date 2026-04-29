@@ -75,6 +75,18 @@ ls $(brew --prefix pgvector)/share/
 
 Pick a Postgres version that appears in that listing.
 
+### Python version on Intel Macs
+
+PyTorch dropped Intel Mac support after version 2.2.x, and that last version doesn't ship Python 3.13 wheels. Fresh Brain's brain server uses local embeddings via `sentence-transformers`, which requires torch.
+
+If you're on an Intel Mac:
+
+```bash
+brew install python@3.12
+```
+
+`setup.sh` will detect Intel + Python 3.13 and use brew's python@3.12 automatically.
+
 ## Structure
 
 ```

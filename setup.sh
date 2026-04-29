@@ -217,7 +217,91 @@ ok "Python dependencies installed"
 
 echo ""
 
-# ── 7. Summary ────────────────────────────────────────────────
+# ── 7. Configure environment files ──────────────────────────
+# Write brain/.env and personal/.env with random tokens. If a .env already
+# exists, prompt before overwriting and recover the existing token from
+# the file so MCP registration in step 9 uses the live value.
+
+write_env_file() {
+    # write_env_file <path> <body>
+    local path="$1" body="$2"
+    printf '%s\n' "$body" > "$path"
+}
+
+short_token() {
+    # First 8 chars only — never echo the full secret
+    echo "${1:0:8}…"
+}
+
+read_env_var() {
+    # read_env_var <file> <key> -> stdout: value (empty if missing)
+    local file="$1" key="$2"
+    [ -f "$file" ] || return 0
+    grep -E "^${key}=" "$file" | head -n 1 | cut -d= -f2- || true
+}
+
+BRAIN_ENV="$SCRIPT_DIR/brain/.env"
+PERSONAL_ENV="$SCRIPT_DIR/personal/.env"
+
+# ── brain/.env ─────────────────────────────────────────────
+brain_overwrite=true
+if [ -f "$BRAIN_ENV" ]; then
+    read -rp "  Overwrite brain/.env? (y/N): " ans
+    if [[ "${ans,,}" != "y" ]]; then
+        brain_overwrite=false
+        existing_token=$(read_env_var "$BRAIN_ENV" "BRAIN_MCP_TOKEN")
+        if [ -n "$existing_token" ]; then
+            BRAIN_MCP_TOKEN="$existing_token"
+            ok "Reusing existing brain/.env (token: $(short_token "$BRAIN_MCP_TOKEN"))"
+        else
+            warn "Existing brain/.env has no BRAIN_MCP_TOKEN — generating a new one and overwriting"
+            brain_overwrite=true
+        fi
+    fi
+fi
+
+if [ "$brain_overwrite" = true ]; then
+    BRAIN_MCP_TOKEN=$(openssl rand -hex 32)
+    write_env_file "$BRAIN_ENV" "DATABASE_BRAIN_APP_URL=postgresql://localhost/brain
+BRAIN_MCP_TOKEN=$BRAIN_MCP_TOKEN
+BRAIN_MCP_PORT=5050"
+    ok "Wrote brain/.env (token: $(short_token "$BRAIN_MCP_TOKEN"))"
+fi
+
+# ── personal/.env ─────────────────────────────────────────
+personal_overwrite=true
+if [ -f "$PERSONAL_ENV" ]; then
+    read -rp "  Overwrite personal/.env? (y/N): " ans
+    if [[ "${ans,,}" != "y" ]]; then
+        personal_overwrite=false
+        existing_token=$(read_env_var "$PERSONAL_ENV" "PERSONAL_MCP_TOKEN")
+        existing_secret=$(read_env_var "$PERSONAL_ENV" "SECRET_KEY")
+        if [ -n "$existing_token" ]; then
+            PERSONAL_MCP_TOKEN="$existing_token"
+            PERSONAL_SECRET_KEY="${existing_secret:-$(openssl rand -hex 32)}"
+            ok "Reusing existing personal/.env (token: $(short_token "$PERSONAL_MCP_TOKEN"))"
+        else
+            warn "Existing personal/.env has no PERSONAL_MCP_TOKEN — generating new and overwriting"
+            personal_overwrite=true
+        fi
+    fi
+fi
+
+if [ "$personal_overwrite" = true ]; then
+    PERSONAL_MCP_TOKEN=$(openssl rand -hex 32)
+    PERSONAL_SECRET_KEY=$(openssl rand -hex 32)
+    write_env_file "$PERSONAL_ENV" "DATABASE_PERSONAL_APP_URL=postgresql://localhost/personal
+DATABASE_BRAIN_APP_URL=postgresql://localhost/brain
+SECRET_KEY=$PERSONAL_SECRET_KEY
+PORT=5001
+PERSONAL_MCP_TOKEN=$PERSONAL_MCP_TOKEN
+PERSONAL_MCP_PORT=5051"
+    ok "Wrote personal/.env (token: $(short_token "$PERSONAL_MCP_TOKEN"))"
+fi
+
+echo ""
+
+# ── 8. Summary ────────────────────────────────────────────────
 
 echo "========================================="
 echo "  Setup Complete"

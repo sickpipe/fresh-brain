@@ -310,7 +310,41 @@ bash "$SCRIPT_DIR/scripts/start-mcp.sh"
 
 echo ""
 
-# ── 9. Summary ────────────────────────────────────────────────
+# ── 9. Register with Claude Code ────────────────────────────
+# Use `claude mcp add` so the operator doesn't have to hand-edit
+# ~/.claude.json. Captain approved user scope (roaming, available in
+# every working directory).
+
+if command -v claude >/dev/null 2>&1; then
+    info "Registering MCP servers with Claude Code (user scope)..."
+
+    # brain
+    claude mcp remove brain -s user 2>/dev/null || true
+    claude mcp add --transport http -s user \
+        -H "Authorization: Bearer $BRAIN_MCP_TOKEN" \
+        brain http://127.0.0.1:5050/mcp
+    ok "registered brain"
+
+    # personal
+    claude mcp remove personal -s user 2>/dev/null || true
+    claude mcp add --transport http -s user \
+        -H "Authorization: Bearer $PERSONAL_MCP_TOKEN" \
+        personal http://127.0.0.1:5051/mcp
+    ok "registered personal"
+
+    echo ""
+    info "Verifying MCP registration:"
+    claude mcp list 2>/dev/null | grep -E "(brain|personal)" || warn "claude mcp list returned no brain/personal entries"
+else
+    warn "claude CLI not found — skipping automatic MCP registration."
+    echo "  Install Claude Code, then run these manually:"
+    echo "    claude mcp add --transport http -s user -H \"Authorization: Bearer \$BRAIN_MCP_TOKEN\" brain http://127.0.0.1:5050/mcp"
+    echo "    claude mcp add --transport http -s user -H \"Authorization: Bearer \$PERSONAL_MCP_TOKEN\" personal http://127.0.0.1:5051/mcp"
+fi
+
+echo ""
+
+# ── 10. Summary ───────────────────────────────────────────────
 
 echo "========================================="
 echo "  Setup Complete"
@@ -332,14 +366,11 @@ echo "Timezone: $USER_TZ"
 echo "AI address: $AI_ADDRESS"
 echo ""
 echo "Next steps:"
-echo "  1. Install Python dependencies:"
-echo "     pip install -r brain/requirements.txt"
-echo "     pip install -r personal/requirements.txt"
-echo "  2. Copy .env.example files to .env and fill in your values:"
-echo "     cp brain/.env.example brain/.env"
-echo "     cp personal/.env.example personal/.env"
-echo "  3. Configure MCP servers in ~/.claude.json (see README.md)"
-echo "  4. Restart Claude Code"
-echo "  5. The orchestrator will detect a fresh brain and walk you through onboarding"
+echo "  1. Restart Claude Code (Cmd+Q then reopen) so it picks up the new MCP servers."
+echo "  2. Open any directory and start a session — the orchestrator will detect a fresh brain and walk you through onboarding."
+echo ""
+echo "Daemon management:"
+echo "  Restart MCP servers (e.g. after reboot):  ./scripts/start-mcp.sh"
+echo "  Full reset (drop dbs, remove venv, etc):  ./scripts/reset.sh"
 echo ""
 echo "Your Fresh Brain is ready."

@@ -56,15 +56,6 @@ else
     fail "Python 3 not found. Install it and try again."
 fi
 
-# Optional Python packages (warn only)
-for pkg in psycopg2 sentence_transformers; do
-    if python3 -c "import $pkg" 2>/dev/null; then
-        ok "Python package: $pkg"
-    else
-        warn "Python package '$pkg' not installed (needed for MCP servers)"
-    fi
-done
-
 # Schema files exist
 for f in "$BRAIN_SCHEMA" "$PERSONAL_SCHEMA"; do
     [ -f "$f" ] || fail "Schema file not found: $f"
@@ -186,7 +177,47 @@ fi
 
 echo ""
 
-# ── 6. Summary ────────────────────────────────────────────────
+# ── 6. Python environment ───────────────────────────────────
+# Build a project-local venv and install both requirements.txt files into
+# it. Re-runnable: keeps an existing venv if Python >= 3.10, otherwise
+# rebuilds. pip output is intentionally not silenced — first install is
+# slow because torch is a multi-hundred-MB download.
+
+VENV_DIR="$SCRIPT_DIR/.venv"
+
+needs_new_venv=true
+if [ -x "$VENV_DIR/bin/python" ]; then
+    venv_ver=$("$VENV_DIR/bin/python" -c 'import sys;print("%d.%d"%sys.version_info[:2])' 2>/dev/null || echo "0.0")
+    venv_major=${venv_ver%%.*}
+    venv_minor=${venv_ver##*.}
+    if [ "$venv_major" -ge 3 ] && [ "$venv_minor" -ge 10 ]; then
+        ok "Reusing existing venv (Python $venv_ver) at .venv"
+        needs_new_venv=false
+    else
+        warn "Existing .venv uses Python $venv_ver (need 3.10+) — recreating"
+        rm -rf "$VENV_DIR"
+    fi
+fi
+
+if [ "$needs_new_venv" = true ]; then
+    info "Creating Python virtualenv at .venv..."
+    python3 -m venv "$VENV_DIR"
+    ok "venv created"
+fi
+
+VENV_PY="$VENV_DIR/bin/python"
+VENV_PIP="$VENV_DIR/bin/pip"
+
+info "Upgrading pip in venv..."
+"$VENV_PIP" install --upgrade pip
+
+info "Installing brain + personal Python dependencies (this can take a few minutes — torch is large)..."
+"$VENV_PIP" install -r "$SCRIPT_DIR/brain/requirements.txt" -r "$SCRIPT_DIR/personal/requirements.txt"
+ok "Python dependencies installed"
+
+echo ""
+
+# ── 7. Summary ────────────────────────────────────────────────
 
 echo "========================================="
 echo "  Setup Complete"

@@ -1,5 +1,5 @@
 -- Brain Database Seed Data (Template Edition)
--- Ships lean: 4 team members, 1 standing order, 2 topic docs.
+-- Ships lean: 4 team members, 4 standing orders, 2 topic docs.
 -- Starter packs offer expansion after first-run setup.
 
 -- ============================================================
@@ -133,11 +133,12 @@ Maintain team roster quality, run the hiring protocol when new expertise is need
 1. Receive a hiring request from the orchestrator (skill need or operator request)
 2. Define the role: what problems does this person solve? What skills are required?
 3. If research is needed, request it from the researcher with a structured brief
-4. Draft the profile: slug, display_name, role, persona, body, summary, capabilities
-5. Ensure capabilities use lowercase hyphenated tags consistent with existing roster conventions
-6. Present the draft to the operator via the orchestrator for approval
-7. On approval, create the team member in the brain
-8. Report the new hire back to the orchestrator',
+4. Check `brain_config.theme` — if a theme is set (not `generic`), choose a character name from that theme that fits the role''s personality and function
+5. Draft the profile: slug, display_name, role, persona, body, summary, capabilities
+6. Ensure capabilities use lowercase hyphenated tags consistent with existing roster conventions
+7. Present the draft to the operator via the orchestrator for approval
+8. On approval, create the team member in the brain
+9. Report the new hire back to the orchestrator',
  'HR Director who maintains team roster quality, runs the hiring protocol, and assesses capability gaps.',
  ARRAY['hiring','profile-creation','team-management','persona-design','capability-assessment'],
  FALSE, 'active')
@@ -145,7 +146,7 @@ Maintain team roster quality, run the hiring protocol when new expertise is need
 ON CONFLICT DO NOTHING;
 
 -- ============================================================
--- standing_orders: core delegation rule (1)
+-- standing_orders: core rules (4)
 -- ============================================================
 
 INSERT INTO standing_orders (slug, title, body, summary, scope, active, trigger_pattern) VALUES
@@ -171,6 +172,111 @@ Trigger the hiring protocol: research the needed role, create a new team member 
  'All implementation work goes to team members. The orchestrator never implements directly.',
  'system', TRUE,
  'Any implementation request: code, research, analysis, or specialist work')
+
+ON CONFLICT DO NOTHING;
+
+INSERT INTO standing_orders (slug, title, body, summary, scope, active, trigger_pattern) VALUES
+('standing-remember-this-protocol', 'Remember This — Storage Protocol',
+ '# Remember This — Storage Protocol
+
+## Rule
+When the operator says "remember this" (or similar), determine the correct database and table based on what the knowledge is.
+
+## Routing Table
+
+| What it is | Where it goes |
+|---|---|
+| How-to, reference knowledge, technical docs | Brain → `topic_documents` |
+| Lessons learned, preferences, things that happened | Brain → `memory_entries` |
+| Rules for how we work | Brain → `standing_orders` |
+| A goal, task, or action item in the operator''s life | Personal → mission/task |
+| A business project or deliverable | Evenrail |
+| How Claude Code should behave | Claude local memory (feedback type) |
+
+## Rules
+1. **One canonical location** — never duplicate the same content across databases or local memory.
+2. **Infer from context** — route based on what you were working on when the operator asked.
+3. **Announce on ambiguity** — if something crosses boundaries, tell the operator where you are putting it so they can redirect.
+4. **Brain is the source of truth for knowledge** — Claude local memory is only for Claude Code behavioral instructions.',
+ 'When operator says "remember this," route to the correct database based on context. One canonical location, no duplicates.',
+ 'system', TRUE,
+ 'Operator says "remember this" or asks to save/store knowledge after completing work')
+
+ON CONFLICT DO NOTHING;
+
+INSERT INTO standing_orders (slug, title, body, summary, scope, active, trigger_pattern) VALUES
+('standing-database-migration-protocol', 'Database Migration Protocol',
+ '# Database Migration Protocol
+
+## Rule
+All database schema changes must go through the db-architect team member using the numbered SQL migration protocol. No direct DDL, no exceptions.
+
+## When This Fires
+Any request that involves changing database schema — adding tables, altering columns, adding indexes, modifying constraints, dropping anything — across any of the three databases (brain, personal, evenrail).
+
+## Procedure
+
+1. **Route to the db-architect.** All schema work is dispatched to the db-architect team member. No other agent writes DDL.
+
+2. **Follow the migration format.** Every change is a numbered SQL file with UP/DOWN sections:
+   - brain: `brain/migrations/NNN_description.sql`
+   - personal: `apps/enterprise/migrations/NNN_description.sql`
+   - evenrail: `apps/evenrail-admin/migrations/NNN_description.sql`
+
+3. **Apply via migrate.sh.** Run `scripts/migrate.sh <brain|personal|evenrail>` — never apply SQL directly via psql.
+
+4. **Update schema.sql after every migration.** Dump the live schema (`pg_dump --schema-only`), clean it up, and overwrite the corresponding schema.sql file so it always reflects current state.
+
+5. **Update seed.sql if needed.** If new tables or config keys were added, update the seed file for clean installs.
+
+6. **Version tracking:**
+   - brain: `brain_config` key `schema_version`
+   - personal: `schema_version` table
+   - evenrail: `schema_version` table
+
+## What This Prevents
+- Schema drift between live DB and documented schema
+- Unreversible changes (every migration has a DOWN)
+- Lost migrations (every change is a numbered file)
+- Version confusion (one authoritative tracker per DB)
+
+## Exceptions
+None. Even "small" changes like adding an index get a migration file.',
+ 'All database schema changes must go through the db-architect using numbered SQL migrations. No direct DDL, no exceptions.',
+ 'system', TRUE,
+ 'Database schema change: adding tables, altering columns, adding indexes, modifying constraints, dropping objects, any DDL')
+
+ON CONFLICT DO NOTHING;
+
+INSERT INTO standing_orders (slug, title, body, summary, scope, active, trigger_pattern) VALUES
+('standing-template-propagation-check', 'Template Propagation Check',
+ '# Template Propagation Check
+
+## Rule
+After any structural change to the live instance, check whether it should propagate back to the template repository.
+
+## When This Fires
+After any structural change — schema migrations, MCP server code changes, CLAUDE.md edits, setup.sh updates, migrate.sh updates, new starter pack definitions, or new standing orders.
+
+## Procedure
+1. Classify the change: ALWAYS propagate / NEVER propagate / JUDGMENT CALL
+2. **ALWAYS propagate**: schema changes, MCP server improvements, new standing orders with `scope: system`, setup/migration script fixes, CLAUDE.md structural improvements
+3. **NEVER propagate**: operator-specific config, personal data, team member customizations (renamed slugs, custom personas), project-specific standing orders
+4. **JUDGMENT CALL**: flag it to the operator before acting
+5. If propagating: log it in `topic_documents/template-changelog` with what changed and why
+6. **Verify the README** — read the template''s README.md and confirm it still accurately describes the product. If the change affects what the product is, how it works, or what it includes, update the README.
+
+## What This Prevents
+- Structural improvements getting lost (never making it to the template)
+- Personal data or operator-specific config leaking into the template
+- Changelog going stale
+- README going stale — the source of truth must reflect the current product
+
+## Note
+This does NOT mean changes are applied to the template immediately. It means they are LOGGED in the changelog so the next template sync session has a complete list of what needs porting.',
+ 'After any structural change to the live instance, check if it should propagate to the template repo and log it.',
+ 'system', TRUE,
+ 'Structural change: schema migration, MCP server code change, CLAUDE.md edit, setup.sh update, new starter pack or standing order')
 
 ON CONFLICT DO NOTHING;
 
@@ -256,11 +362,10 @@ Optional team members and standing orders offered after first-run setup. The orc
 
 ## Standing Order Packs
 
-### Database Migration Protocol (recommended)
-Enforces numbered SQL migrations with UP/DOWN sections for all schema changes. Routes DDL to the db-architect team member.
-
 ### Health Status Change Checklist
-When health status changes (new supplement, lab results, symptom), updates all relevant databases in order.',
+When health status changes (new supplement, lab results, symptom), updates all relevant databases in order.
+
+*Note: Database Migration Protocol and Template Propagation Check now ship by default and are no longer optional packs.*',
  'starter-packs',
  'Optional team member packs and standing order packs offered to new users after first-run setup.',
  'system')

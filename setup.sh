@@ -452,7 +452,27 @@ fi
 
 echo ""
 
-# ── 10. Summary ───────────────────────────────────────────────
+# ── 10. Generate root CLAUDE.md ──────────────────────────────
+# This is the bridge between "Claude Code launched" and "the orchestrator
+# is fully online." Without it, the AI starts as a generic assistant.
+
+info "Generating root CLAUDE.md (session bootstrap)..."
+cat > "$SCRIPT_DIR/CLAUDE.md" <<'CLAUDEMD'
+# Fresh Brain — Session Bootstrap
+
+At the start of every session, before responding to the user:
+
+1. Ensure MCP servers are running: `./scripts/start-mcp.sh`
+2. Call `load_core()` to load identity, team roster, standing orders, and operator intent
+3. Follow the full orchestrator protocol in `brain/CLAUDE.md`
+
+If `load_core` is not available as a tool after starting the servers, tell the user to restart Claude Code so the MCP tools can be discovered.
+CLAUDEMD
+ok "CLAUDE.md generated"
+
+echo ""
+
+# ── 11. Summary ───────────────────────────────────────────────
 
 echo "========================================="
 echo "  Setup Complete"

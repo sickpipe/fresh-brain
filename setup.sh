@@ -426,18 +426,18 @@ if [ "${FRESH_BRAIN_SKIP_MCP_REGISTER:-0}" = "1" ]; then
 elif command -v claude >/dev/null 2>&1; then
     info "Registering MCP servers with Claude Code (user scope)..."
 
-    # brain
+    # brain — name and URL must come BEFORE -H (variadic flag would eat them)
     claude mcp remove brain -s user 2>/dev/null || true
     claude mcp add --transport http -s user \
-        -H "Authorization: Bearer $BRAIN_MCP_TOKEN" \
-        brain http://127.0.0.1:5050/mcp
+        brain http://127.0.0.1:5050/mcp \
+        -H "Authorization: Bearer $BRAIN_MCP_TOKEN"
     ok "registered brain"
 
-    # personal
+    # personal — same ordering as brain above
     claude mcp remove personal -s user 2>/dev/null || true
     claude mcp add --transport http -s user \
-        -H "Authorization: Bearer $PERSONAL_MCP_TOKEN" \
-        personal http://127.0.0.1:5051/mcp
+        personal http://127.0.0.1:5051/mcp \
+        -H "Authorization: Bearer $PERSONAL_MCP_TOKEN"
     ok "registered personal"
 
     echo ""
@@ -446,8 +446,8 @@ elif command -v claude >/dev/null 2>&1; then
 else
     warn "claude CLI not found — skipping automatic MCP registration."
     echo "  Install Claude Code, then run these manually:"
-    echo "    claude mcp add --transport http -s user -H \"Authorization: Bearer \$BRAIN_MCP_TOKEN\" brain http://127.0.0.1:5050/mcp"
-    echo "    claude mcp add --transport http -s user -H \"Authorization: Bearer \$PERSONAL_MCP_TOKEN\" personal http://127.0.0.1:5051/mcp"
+    echo "    claude mcp add --transport http -s user brain http://127.0.0.1:5050/mcp -H \"Authorization: Bearer \$BRAIN_MCP_TOKEN\""
+    echo "    claude mcp add --transport http -s user personal http://127.0.0.1:5051/mcp -H \"Authorization: Bearer \$PERSONAL_MCP_TOKEN\""
 fi
 
 echo ""

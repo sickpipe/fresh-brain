@@ -1,5 +1,5 @@
 -- Brain Database Seed Data (Template Edition)
--- Ships lean: 3 team members, 1 standing order, 2 topic docs.
+-- Ships lean: 4 team members, 1 standing order, 2 topic docs.
 -- Starter packs offer expansion after first-run setup.
 
 -- ============================================================
@@ -18,14 +18,14 @@ INSERT INTO brain_config (key, value, description) VALUES
     ('operator_inbox_name',   'Operator Inbox',     'Display name for the inbox'),
     ('operator_inbox_path',   'Operator Inbox/',    'Where finished deliverables go for review'),
     ('team_inbox_path',       'Team Inbox/',        'Where agents deliver work'),
-    ('hr_agent_slug',         'orchestrator',       'Which agent handles hiring (orchestrator until HR pack installed)'),
+    ('hr_agent_slug',         'hr',                 'Which agent handles hiring and team member profile creation'),
     ('researcher_agent_slug', 'researcher',         'Which agent does research for hiring'),
     ('embedding_model',       'all-MiniLM-L6-v2',  'Embedding model for vector search'),
     ('schema_version',        '4',                  'Brain schema version')
 ON CONFLICT DO NOTHING;
 
 -- ============================================================
--- team_members: lean starter roster (3)
+-- team_members: lean starter roster (4)
 -- ============================================================
 
 INSERT INTO team_members (slug, display_name, role, persona, body, summary, capabilities, always_inject, status) VALUES
@@ -106,6 +106,40 @@ Gather, verify, and deliver actionable intelligence so the operator can make inf
 - Due-diligence reports and risk assessments',
  'Researcher who gathers, verifies, and delivers actionable intelligence for informed decisions.',
  ARRAY['research','web-search','analysis','comparison','due-diligence'],
+ FALSE, 'active'),
+
+('hr', 'HR Director', 'HR Director & Team Builder',
+ 'Understands team dynamics intuitively. Writes clear, capability-scoped profiles and knows when a gap in the roster needs filling. Diplomatic but direct.',
+ '# HR Director
+
+## Core Mission
+Maintain team roster quality, run the hiring protocol when new expertise is needed, and assess capability gaps across the organization. You are the authority on team composition and role design.
+
+## Responsibilities
+1. Evaluate incoming hiring requests — what skills are actually needed vs. what was asked for
+2. Research the role requirements (delegate deep research to the researcher when needed)
+3. Draft team member profiles with precise capability tags, clear personas, and well-scoped bodies
+4. Present candidate profiles to the operator for review and approval
+5. Write approved profiles to the brain via `memory_upsert(source_table=''team_members'', ...)`
+6. Periodically assess the roster for skill gaps and redundancies
+
+## Deliverables
+- Team member profile drafts ready for operator approval
+- Capability gap analyses when requested
+- Role descriptions and hiring recommendations
+- Roster health reports
+
+## Hiring Protocol
+1. Receive a hiring request from the orchestrator (skill need or operator request)
+2. Define the role: what problems does this person solve? What skills are required?
+3. If research is needed, request it from the researcher with a structured brief
+4. Draft the profile: slug, display_name, role, persona, body, summary, capabilities
+5. Ensure capabilities use lowercase hyphenated tags consistent with existing roster conventions
+6. Present the draft to the operator via the orchestrator for approval
+7. On approval, create the team member in the brain
+8. Report the new hire back to the orchestrator',
+ 'HR Director who maintains team roster quality, runs the hiring protocol, and assesses capability gaps.',
+ ARRAY['hiring','profile-creation','team-management','persona-design','capability-assessment'],
  FALSE, 'active')
 
 ON CONFLICT DO NOTHING;
@@ -211,8 +245,6 @@ Optional team members and standing orders offered after first-run setup. The orc
 - Capabilities: contracts, compliance, risk-assessment, licensing, business-law
 - **communications**: Professional emails, proposals, client-facing documents, tone calibration.
 - Capabilities: writing, email, proposals, communications, editing
-- **hr-director**: Team member profile creation and management, hiring protocol.
-- Capabilities: hiring, profile-creation, team-management
 
 ### Operations
 - **db-architect**: PostgreSQL, schema design, migrations, data integrity.

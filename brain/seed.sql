@@ -1,5 +1,5 @@
 -- Brain Database Seed Data (Template Edition)
--- Ships lean: 4 team members, 4 standing orders, 2 topic docs.
+-- Ships lean: 4 team members, 5 standing orders, 2 topic docs.
 -- Starter packs offer expansion after first-run setup.
 
 -- ============================================================
@@ -277,6 +277,60 @@ This does NOT mean changes are applied to the template immediately. It means the
  'After any structural change to the live instance, check if it should propagate to the template repo and log it.',
  'system', TRUE,
  'Structural change: schema migration, MCP server code change, CLAUDE.md edit, setup.sh update, new starter pack or standing order')
+
+ON CONFLICT DO NOTHING;
+
+INSERT INTO standing_orders (slug, title, body, summary, scope, active, trigger_pattern) VALUES
+('standing-end-session-protocol', 'End Session Protocol',
+ '# End Session Protocol
+
+## Rule
+When the operator signals the end of a session, run the full close-out sequence before the closing reply.
+
+## When This Fires
+Operator says "end session", "end this session", "we''re done", "wrap up", "that''s it for today", or similar stop signals.
+
+## Procedure
+
+### Step 1: Update database records
+For every project or mission touched during the session:
+1. **Brain:** If topic documents, team members, or standing orders were modified, ensure the brain reflects current state. Clear resolved issues, add recent work summaries.
+2. **Personal:** If missions or tasks were worked on, update their status and notes in the personal database.
+
+The databases are the source of truth. Session notes are a handoff aid.
+
+### Step 2: Write session note
+```
+memory_upsert(
+  source_table=''session_notes'',
+  slug=''session-YYYY-MM-DD-HHMMSS'',
+  title=''<one-line summary>'',
+  summary=''<2-3 sentence overview>'',
+  body=<structured handoff>,
+  session_ended_at=<current timestamp>,
+  projects_touched=[<project/mission slugs>],
+  tags=[''end-session'', <context tags>]
+)
+```
+
+Body format:
+- **What happened** — bullet list of meaningful work, decisions, files touched
+- **Where we left off** — current state, running processes, half-done work, open questions
+- **Suggested next step** — concrete recommendation for the next session
+
+### Step 3: Log ship entries
+If deliverables were shipped, write a ship log to `memory_entries` with `entry_type=''ship_log''`.
+
+## Rules
+1. **Atomic write** — session notes are append-only. Write once at session end.
+2. **Always populate title** — keeps `memory_list_recent` output scannable.
+3. **Set session_ended_at explicitly** — no silent defaults.
+4. **Slug format** — `session-YYYY-MM-DD-HHMMSS` (mechanical, collision-proof).
+5. **Thin entries are fine** — if the session was trivial, skip Steps 1 and 3 but still write a one-liner session note. Gaps in the log are worse than thin entries.
+6. **Be concrete** — file paths, decisions, current state. Not narrative.',
+ 'When operator signals session end, run full close-out: update touched DB records, write session note, log ship entries.',
+ 'system', TRUE,
+ 'Operator signals session end: "end session", "wrap up", "we''re done", or similar stop signals')
 
 ON CONFLICT DO NOTHING;
 

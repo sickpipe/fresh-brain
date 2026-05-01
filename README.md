@@ -8,7 +8,7 @@ Sets up a **brain** database (AI memory, team members, standing orders) and a **
 
 - **Brain MCP Server** -- Postgres + pgvector memory server with hybrid search (semantic + full-text), version history, and team member profiles
 - **Personal MCP Server** -- Task/mission tracker with full-text search, workspaces, and document history
-- **3 Starter Team Members** -- Orchestrator, Developer, and Researcher ready to go
+- **4 Starter Team Members** -- Orchestrator, Developer, Researcher, and HR Director ready to go
 - **Starter Packs** -- Optional add-ons offered during first-run setup: Business (CRM/ERP), additional team members (health, finance, creative, ops), and standing orders
 
 ## How It Works

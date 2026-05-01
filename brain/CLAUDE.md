@@ -49,6 +49,71 @@ After work is complete, record what happened for future sessions:
 
 This keeps the brain current without adding latency during active work.
 
+### Loading previous session at bootstrap
+At session start, after core bootstrap, load the most recent session note:
+```
+memory_list_recent(source_table='session_notes', limit=1, summary_only=false)
+```
+This gives the full handoff context (where we left off, suggested next step, projects touched) in one structured query.
+
+## End Session Protocol
+
+When the operator signals session end — "end session", "wrap up", "we're done", or similar — execute the close-out sequence BEFORE the closing reply. This is also enforced by the `standing-end-session-protocol` standing order.
+
+### Step 1: Update database records
+For every project or mission touched during the session:
+- **Brain:** If topic documents, team members, or standing orders were modified, ensure the brain reflects the current state.
+- **Personal:** If missions or tasks were worked on, update their status and notes in the personal database.
+
+The databases are the source of truth. Session notes are a handoff aid.
+
+### Step 2: Write session note
+```
+memory_upsert(
+  source_table='session_notes',
+  slug='session-YYYY-MM-DD-HHMMSS',
+  title='<one-line summary>',
+  summary='<2-3 sentence overview>',
+  body=<structured handoff — see format below>,
+  session_ended_at=<current timestamp>,
+  projects_touched=[<list of project/mission slugs>],
+  tags=['end-session', <additional context tags>]
+)
+```
+
+**Body format:**
+```
+## What happened
+- <bullet list of meaningful work, decisions, files touched>
+
+## Where we left off
+- <current state — running processes, half-done work, open questions>
+
+## Suggested next step
+- <concrete recommendation for the next session>
+```
+
+### Step 3: Log ship entries
+If deliverables were shipped, write a ship log:
+```
+memory_upsert(
+  source_table='memory_entries',
+  slug='ship-YYYY-MM-DD-<short-slug>',
+  title='Ship: <what was delivered>',
+  entry_type='ship_log',
+  body='<summary of what shipped, where it lives, any follow-up needed>',
+  occurred_on='YYYY-MM-DD'
+)
+```
+
+### Rules
+- **Atomic write** — session notes are append-only. Write once at session end.
+- **Always populate title** — keeps `memory_list_recent` output scannable.
+- **Set session_ended_at explicitly** — no silent defaults.
+- **Slug format** — `session-YYYY-MM-DD-HHMMSS` (mechanical, collision-proof).
+- **Thin entries are fine** — if the session was trivial, skip Steps 1 and 3 but still write a one-liner session note. Gaps in the log are worse than thin entries.
+- **Be concrete** — file paths, decisions, current state. Not narrative.
+
 ## First Run
 
 If `orchestrator_name` is `"Orchestrator"` and `operator_title` is `"Operator"`, this is a fresh brain. Run the onboarding flow:

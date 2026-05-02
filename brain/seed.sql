@@ -21,7 +21,7 @@ INSERT INTO brain_config (key, value, description) VALUES
     ('hr_agent_slug',         'hr',                 'Which agent handles hiring and team member profile creation'),
     ('researcher_agent_slug', 'researcher',         'Which agent does research for hiring'),
     ('embedding_model',       'all-MiniLM-L6-v2',  'Embedding model for vector search'),
-    ('schema_version',        '4',                  'Brain schema version')
+    ('schema_version',        '8',                  'Brain schema version')
 ON CONFLICT DO NOTHING;
 
 -- ============================================================
@@ -197,7 +197,8 @@ When the operator says "remember this" (or similar), determine the correct datab
 1. **One canonical location** — never duplicate the same content across databases or local memory.
 2. **Infer from context** — route based on what you were working on when the operator asked.
 3. **Announce on ambiguity** — if something crosses boundaries, tell the operator where you are putting it so they can redirect.
-4. **Brain is the source of truth for knowledge** — Claude local memory is only for Claude Code behavioral instructions.',
+4. **Brain is the source of truth for knowledge** — Claude local memory is only for Claude Code behavioral instructions.
+5. **Log the routing decision** — after every save, insert a row into `routing_log` recording `destination_db`, `destination_table`, `record_slug`, `rationale` (why this destination), and `triggered_by` (who/what initiated it). This enables periodic audits.',
  'When operator says "remember this," route to the correct database based on context. One canonical location, no duplicates.',
  'system', TRUE,
  'Operator says "remember this" or asks to save/store knowledge after completing work')
@@ -351,7 +352,7 @@ The AI Team Orchestrator runs on a three-database architecture connected via MCP
 ### Brain (this database)
 - **Purpose**: AI memory, team profiles, configuration, standing orders
 - **Engine**: PostgreSQL + pgvector (384-dim, all-MiniLM-L6-v2)
-- **Tables**: brain_config, team_members, topic_documents, memory_entries, session_notes, standing_orders, ideas, operator_intent, document_chunks, document_history, access_log
+- **Tables**: brain_config, team_members, topic_documents, memory_entries, session_notes, standing_orders, ideas, operator_intent, document_chunks, document_history, access_log, routing_log
 - **MCP Server**: brain — provides memory_search, memory_get, memory_upsert, memory_list_recent, memory_history, memory_rollback, memory_list_capabilities
 
 ### Evenrail (business/project tracking)

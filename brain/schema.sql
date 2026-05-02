@@ -1,5 +1,5 @@
--- Brain Database Schema (v7)
--- Generated from live database: 2026-04-28
+-- Brain Database Schema (v8)
+-- Generated from live database: 2026-05-01
 -- Source of truth for fresh installs. Kept in sync with migrations.
 --
 -- SEARCH: Brain uses pgvector semantic search (all-MiniLM-L6-v2, 384-dim)
@@ -15,6 +15,9 @@
 -- migrate.sh runner tracks each filename rather than gating on a single
 -- schema_version integer. brain_config.schema_version is now informational
 -- only — bootstrap may still read it but the runner does not.
+--
+-- v8 (006_add_routing_log.sql): adds routing_log table to track all memory
+-- saves across databases for audit and correctness verification.
 
 -- Extensions
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
@@ -352,6 +355,32 @@ CREATE TABLE access_log (
 
 CREATE INDEX idx_access_log_source ON access_log(source_table, slug);
 CREATE INDEX idx_access_log_time ON access_log(accessed_at DESC);
+
+-- ============================================================
+-- routing_log: tracks all memory saves across databases (v8)
+-- ============================================================
+CREATE TABLE routing_log (
+    id                BIGSERIAL PRIMARY KEY,
+    destination_db    TEXT NOT NULL CHECK (destination_db IN ('brain', 'personal', 'evenrail_app')),
+    destination_table TEXT NOT NULL,
+    record_slug       TEXT NOT NULL,
+    rationale         TEXT NOT NULL,
+    triggered_by      TEXT NOT NULL,
+    session_context   TEXT,
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at        TIMESTAMPTZ
+);
+
+CREATE INDEX idx_routing_log_destination_db ON routing_log (destination_db);
+CREATE INDEX idx_routing_log_destination_table ON routing_log (destination_table);
+CREATE INDEX idx_routing_log_record_slug ON routing_log (record_slug);
+CREATE INDEX idx_routing_log_created_at ON routing_log (created_at DESC);
+CREATE INDEX idx_routing_log_db_created ON routing_log (destination_db, created_at DESC);
+CREATE INDEX idx_routing_log_live ON routing_log (id) WHERE deleted_at IS NULL;
+
+CREATE TRIGGER trg_routing_log_updated_at
+    BEFORE UPDATE ON routing_log FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
 
 -- ============================================================
 -- applied_migrations: per-filename migration ledger (v7)

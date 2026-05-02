@@ -21,6 +21,10 @@ INSERT INTO brain_config (key, value, description) VALUES
     ('hr_agent_slug',         'hr',                 'Which agent handles hiring and team member profile creation'),
     ('researcher_agent_slug', 'researcher',         'Which agent does research for hiring'),
     ('embedding_model',       'all-MiniLM-L6-v2',  'Embedding model for vector search'),
+    ('personal_db_display_name', '',                 'Display name for the personal database (set during setup)'),
+    ('personal_db_app_url',      '',                 'Personal dashboard URL (set during setup)'),
+    ('business_db_display_name', '',                 'Display name for the business database (set when business pack installed)'),
+    ('business_db_app_url',      '',                 'Business dashboard URL (set when business pack installed)'),
     ('schema_version',        '8',                  'Brain schema version')
 ON CONFLICT DO NOTHING;
 

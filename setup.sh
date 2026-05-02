@@ -47,6 +47,12 @@ read -rp "What's your timezone? (e.g., America/New_York): " USER_TZ
 read -rp "What should the AI call you? (e.g., Captain): " AI_ADDRESS
 
 echo ""
+read -rp "What would you like to call your personal dashboard? (default: Personal): " PERSONAL_DB_NAME
+PERSONAL_DB_NAME="${PERSONAL_DB_NAME:-Personal}"
+read -rp "Personal dashboard URL? (default: http://127.0.0.1:5001): " PERSONAL_DB_URL
+PERSONAL_DB_URL="${PERSONAL_DB_URL:-http://127.0.0.1:5001}"
+
+echo ""
 
 # ── 2. Prerequisites ─────────────────────────────────────────
 
@@ -217,10 +223,12 @@ if ! printf '%s\n' "${SKIPPED[@]+"${SKIPPED[@]}"}" | grep -qx "brain"; then
     info "Seeding Brain config..."
     psql -d brain -q <<EOSQL
 INSERT INTO brain_config (key, value, description) VALUES
-    ('operator_name',  '${USER_NAME//\'/\'\'}',    'Operator name'),
-    ('operator_title', '${USER_TITLE//\'/\'\'}',   'Operator role/title'),
-    ('timezone',       '${USER_TZ//\'/\'\'}',      'Default timezone'),
-    ('ai_address',     '${AI_ADDRESS//\'/\'\'}',   'How the AI addresses the operator')
+    ('operator_name',              '${USER_NAME//\'/\'\'}',          'Operator name'),
+    ('operator_title',             '${USER_TITLE//\'/\'\'}',         'Operator role/title'),
+    ('timezone',                   '${USER_TZ//\'/\'\'}',            'Default timezone'),
+    ('ai_address',                 '${AI_ADDRESS//\'/\'\'}',         'How the AI addresses the operator'),
+    ('personal_db_display_name',   '${PERSONAL_DB_NAME//\'/\'\'}',  'Display name for the personal database'),
+    ('personal_db_app_url',        '${PERSONAL_DB_URL//\'/\'\'}',   'Personal dashboard URL')
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, description = EXCLUDED.description;
 EOSQL
     ok "Brain config seeded"

@@ -1,5 +1,5 @@
--- Brain Database Schema (v8)
--- Generated from live database: 2026-05-01
+-- Brain Database Schema (v10)
+-- Generated from live database: 2026-05-02
 -- Source of truth for fresh installs. Kept in sync with migrations.
 --
 -- SEARCH: Brain uses pgvector semantic search (all-MiniLM-L6-v2, 384-dim)
@@ -18,6 +18,13 @@
 --
 -- v8 (006_add_routing_log.sql): adds routing_log table to track all memory
 -- saves across databases for audit and correctness verification.
+--
+-- v9 (007_add_edited_by_guard.sql): adds edited_by guard column to
+-- standing_orders, team_members, and brain_config. Tracks system vs
+-- operator authorship so data migrations can skip customized rows.
+--
+-- v10 (008_update_remember_this_protocol.sql): updates remember-this-protocol
+-- standing order body to include routing log step (Step 4).
 
 -- Extensions
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
@@ -41,6 +48,7 @@ CREATE TABLE brain_config (
     key         TEXT PRIMARY KEY,
     value       TEXT NOT NULL,
     description TEXT,
+    edited_by   TEXT NOT NULL DEFAULT 'system' CHECK (edited_by IN ('system', 'operator')),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -73,6 +81,7 @@ CREATE TABLE team_members (
                              coalesce(role, '') || ' ' ||
                              coalesce(body, ''))
                      ) STORED,
+    edited_by        TEXT NOT NULL DEFAULT 'system' CHECK (edited_by IN ('system', 'operator')),
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     deleted_at       TIMESTAMPTZ
@@ -214,6 +223,7 @@ CREATE TABLE standing_orders (
                              coalesce(title, '') || ' ' ||
                              coalesce(body, ''))
                      ) STORED,
+    edited_by        TEXT NOT NULL DEFAULT 'system' CHECK (edited_by IN ('system', 'operator')),
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     deleted_at       TIMESTAMPTZ

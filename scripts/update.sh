@@ -188,5 +188,19 @@ for result in "${MIGRATION_RESULTS[@]}"; do
     echo "  $result"
 done
 
+# --- 5. Restart MCP servers ---
+if [ "$GIT_CHANGED" = true ] || [ "$TOTAL_APPLIED" -gt 0 ]; then
+    echo ""
+    info "Restarting MCP servers (code or schema changed)..."
+    START_SCRIPT="$SCRIPT_DIR/start-mcp.sh"
+    if [ -x "$START_SCRIPT" ]; then
+        "$START_SCRIPT"
+    else
+        warn "start-mcp.sh not found — restart servers manually"
+    fi
+else
+    info "No changes — MCP servers left running"
+fi
+
 echo ""
 ok "Update complete."

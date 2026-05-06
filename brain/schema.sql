@@ -1,4 +1,4 @@
--- Brain Database Schema (v11)
+-- Brain Database Schema (v12)
 -- Generated from live database: 2026-05-06
 -- Source of truth for fresh installs. Kept in sync with migrations.
 --
@@ -28,6 +28,10 @@
 --
 -- v11 (010_add_mcp_tool_log.sql): mcp_tool_log table for tool call
 -- observability — tracks tool name, args, duration, success/error.
+--
+-- v12 (011_session_notes_consolidated_at.sql): session_notes gains
+-- consolidated_at column — marks notes archived by the consolidation
+-- agent so search excludes them by default.
 
 -- Extensions
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
@@ -197,7 +201,8 @@ CREATE TABLE session_notes (
                              coalesce(summary, '') || ' ' ||
                              coalesce(body, ''))
                      ) STORED,
-    created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    consolidated_at  TIMESTAMPTZ
 );
 
 CREATE INDEX idx_session_notes_ended_at ON session_notes(session_ended_at DESC);

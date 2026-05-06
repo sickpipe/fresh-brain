@@ -1,4 +1,4 @@
-"""brain/mcp_server.py — Flask MCP server for brain v2 (10 tools)."""
+"""brain/mcp_server.py — Flask MCP server for brain v2 (11 tools)."""
 
 import json
 import logging
@@ -21,6 +21,7 @@ from mcp_tools import patch as tool_patch
 from mcp_tools import rollback as tool_rollback
 from mcp_tools import search as tool_search
 from mcp_tools import upsert as tool_upsert
+from mcp_tools_archivist import consolidate_notes as tool_consolidate_notes
 from mcp_tools_observability import log_tool_call as _log_tool_call
 from mcp_tools_observability import query_tool_log as tool_query_tool_log
 from rate_limit import MCP_LIMIT, init_rate_limiting, limiter
@@ -75,6 +76,7 @@ TOOLS = {
     "memory_load_core": {"fn": tool_load_core, "description": "Bootstrap — returns config, roster, standing orders, operator intent."},
     "memory_patch": {"fn": tool_patch, "description": "Partial update — modifies only provided fields. Records history."},
     "memory_query_tool_log": {"fn": tool_query_tool_log, "description": "Query MCP tool call history for observability."},
+    "memory_consolidate_notes": {"fn": tool_consolidate_notes, "description": "Archive old session notes into digest topic documents."},
 }
 
 

@@ -35,7 +35,9 @@ def _row_to_json(row: dict) -> dict:
 
 
 def _not_deleted(table: str) -> str:
-    return "" if table == "session_notes" else "AND deleted_at IS NULL"
+    if table == "session_notes":
+        return "AND consolidated_at IS NULL"
+    return "AND deleted_at IS NULL"
 
 
 def _vector_pass(cur, tables, qvec_lit, limit, summary_only):
@@ -109,7 +111,7 @@ def _text_pass(cur, tables, query, limit):
     hits = {}
     rank = 0
     for t in tables:
-        nd = "AND deleted_at IS NULL" if t != "session_notes" else ""
+        nd = _not_deleted(t)
         try:
             cur.execute(
                 f"""

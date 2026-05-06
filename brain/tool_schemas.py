@@ -257,6 +257,24 @@ MEMORY_QUERY_TOOL_LOG_SCHEMA = {
     "required": [],
 }
 
+MEMORY_CONSOLIDATE_NOTES_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "older_than_days": {
+            "type": "integer",
+            "default": 14,
+            "minimum": 1,
+            "description": "Archive notes older than this many days",
+        },
+        "dry_run": {
+            "type": "boolean",
+            "default": False,
+            "description": "Preview without archiving",
+        },
+    },
+    "required": [],
+}
+
 SCHEMAS = {
     "memory_search": MEMORY_SEARCH_SCHEMA,
     "memory_get": MEMORY_GET_SCHEMA,
@@ -268,4 +286,5 @@ SCHEMAS = {
     "memory_load_core": MEMORY_LOAD_CORE_SCHEMA,
     "memory_patch": MEMORY_PATCH_SCHEMA,
     "memory_query_tool_log": MEMORY_QUERY_TOOL_LOG_SCHEMA,
+    "memory_consolidate_notes": MEMORY_CONSOLIDATE_NOTES_SCHEMA,
 }

@@ -1,5 +1,5 @@
--- Brain Database Schema (v10)
--- Generated from live database: 2026-05-02
+-- Brain Database Schema (v11)
+-- Generated from live database: 2026-05-06
 -- Source of truth for fresh installs. Kept in sync with migrations.
 --
 -- SEARCH: Brain uses pgvector semantic search (all-MiniLM-L6-v2, 384-dim)
@@ -25,6 +25,9 @@
 --
 -- v10 (008_update_remember_this_protocol.sql): updates remember-this-protocol
 -- standing order body to include routing log step (Step 4).
+--
+-- v11 (010_add_mcp_tool_log.sql): mcp_tool_log table for tool call
+-- observability — tracks tool name, args, duration, success/error.
 
 -- Extensions
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
@@ -391,6 +394,25 @@ CREATE INDEX idx_routing_log_live ON routing_log (id) WHERE deleted_at IS NULL;
 
 CREATE TRIGGER trg_routing_log_updated_at
     BEFORE UPDATE ON routing_log FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
+
+-- ============================================================
+-- mcp_tool_log: append-only MCP tool call observability (v11)
+-- ============================================================
+CREATE TABLE mcp_tool_log (
+    id              BIGSERIAL PRIMARY KEY,
+    tool_name       TEXT NOT NULL,
+    arguments       JSONB,
+    result_size     INTEGER,
+    duration_ms     REAL NOT NULL,
+    success         BOOLEAN NOT NULL DEFAULT TRUE,
+    error_message   TEXT,
+    session_id      TEXT,
+    called_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_mcp_tool_log_called_at ON mcp_tool_log (called_at DESC);
+CREATE INDEX idx_mcp_tool_log_tool_name ON mcp_tool_log (tool_name);
+CREATE INDEX idx_mcp_tool_log_session_id ON mcp_tool_log (session_id) WHERE session_id IS NOT NULL;
 
 -- ============================================================
 -- applied_migrations: per-filename migration ledger (v7)

@@ -146,46 +146,73 @@ def _rrf_merge(vector_hits, text_hits, limit):
     return scored[:limit]
 
 
-def search(conn, query, source_tables=None, limit=10, summary_only=False):
-    """Hybrid semantic + text search with RRF merging."""
+VALID_MODES = ("hybrid", "vector_only")
+
+
+def _vector_only_results(vector_hits, limit, distance_threshold):
+    """Extract and filter vector results for vector_only mode."""
+    ranked = sorted(vector_hits.values(), key=lambda x: x[0]["distance"])
+    results = []
+    for row_data, _ in ranked:
+        if row_data["distance"] > distance_threshold:
+            continue
+        rd = dict(row_data)
+        rd["distance"] = round(rd["distance"], 6)
+        results.append(rd)
+        if len(results) >= limit:
+            break
+    return results
+
+
+def search(
+    conn, query, source_tables=None, limit=10, summary_only=False,
+    mode="hybrid", distance_threshold=0.7,
+):
+    """Hybrid or vector-only semantic search."""
     if not query or not query.strip():
         raise ValueError("search: query is required")
+    if mode not in VALID_MODES:
+        raise ValueError(f"search: mode must be one of {VALID_MODES}")
     tables = source_tables or SEARCHABLE_TABLES
     for t in tables:
         if t not in SEARCHABLE_TABLES:
             raise ValueError(f"search: unknown source_table '{t}'")
     limit = max(1, min(int(limit), 50))
+    distance_threshold = float(distance_threshold)
 
     qvec = embed(query)
     qvec_lit = "[" + ",".join(repr(float(x)) for x in qvec) + "]"
 
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         vector_hits = _vector_pass(cur, tables, qvec_lit, limit, summary_only)
-        text_hits = _text_pass(cur, tables, query, limit)
 
-    merged = _rrf_merge(vector_hits, text_hits, limit)
-
-    # For text-only hits missing row data, fetch the rows
-    results = []
-    for score, key, row_data in merged:
-        if row_data is None:
-            t, slug = key
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                nd = _not_deleted(t)
-                cur.execute(
-                    f"SELECT '{t}' AS source_table, slug, {_cols(t, summary_only)} "
-                    f"FROM {t} WHERE slug = %s {nd}",
-                    (slug,),
-                )
-                parent = cur.fetchone()
-            if not parent:
-                continue
-            row_data = _row_to_json(dict(parent))
-        row_data["rrf_score"] = round(score, 6)
-        results.append(row_data)
+    if mode == "vector_only":
+        results = _vector_only_results(vector_hits, limit, distance_threshold)
+    else:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            text_hits = _text_pass(cur, tables, query, limit)
+        merged = _rrf_merge(vector_hits, text_hits, limit)
+        results = []
+        for score, key, row_data in merged:
+            if row_data is None:
+                t, slug = key
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    nd = _not_deleted(t)
+                    cur.execute(
+                        f"SELECT '{t}' AS source_table, slug, "
+                        f"{_cols(t, summary_only)} "
+                        f"FROM {t} WHERE slug = %s {nd}",
+                        (slug,),
+                    )
+                    parent = cur.fetchone()
+                if not parent:
+                    continue
+                row_data = _row_to_json(dict(parent))
+            row_data["rrf_score"] = round(score, 6)
+            results.append(row_data)
 
     from mcp_tools import _log_access
     for r in results:
         _log_access(conn, r["source_table"], r["slug"], "search")
 
-    return {"query": query, "count": len(results), "results": results}
+    return {"query": query, "mode": mode, "count": len(results), "results": results}

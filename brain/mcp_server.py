@@ -1,9 +1,10 @@
-"""brain/mcp_server.py — Flask MCP server for brain v2 (9 tools)."""
+"""brain/mcp_server.py — Flask MCP server for brain v2 (10 tools)."""
 
 import json
 import logging
 import os
 import secrets
+import time
 import traceback
 
 from flask import Flask, jsonify, request
@@ -20,6 +21,8 @@ from mcp_tools import patch as tool_patch
 from mcp_tools import rollback as tool_rollback
 from mcp_tools import search as tool_search
 from mcp_tools import upsert as tool_upsert
+from mcp_tools_observability import log_tool_call as _log_tool_call
+from mcp_tools_observability import query_tool_log as tool_query_tool_log
 from rate_limit import MCP_LIMIT, init_rate_limiting, limiter
 from tool_schemas import SCHEMAS as TOOL_SCHEMAS
 
@@ -62,75 +65,16 @@ def _normalize_accept_header():
 
 # ------------------------------------------------------------------ tools
 TOOLS = {
-    "memory_search": {
-        "fn": tool_search,
-        "description": (
-            "Semantic search across brain content tables. "
-            "Args: query (str, required), source_tables (list[str], optional), "
-            "limit (int, default 10), summary_only (bool, default false)."
-        ),
-    },
-    "memory_get": {
-        "fn": tool_get,
-        "description": (
-            "Fetch one row by source_table + slug. "
-            "Args: source_table (str), slug (str)."
-        ),
-    },
-    "memory_upsert": {
-        "fn": tool_upsert,
-        "description": (
-            "Insert or update a row. Records history before overwrite, "
-            "recomputes embedding. Args: source_table, slug, body, "
-            "+ table-specific metadata, edited_by?, change_note?."
-        ),
-    },
-    "memory_list_recent": {
-        "fn": tool_list_recent,
-        "description": (
-            "List recent rows from one table sorted by updated_at. "
-            "Args: source_table, limit (default 20), summary_only (bool, default false)."
-        ),
-    },
-    "memory_history": {
-        "fn": tool_history,
-        "description": (
-            "Read document_history entries for a specific slug. "
-            "Args: source_table, source_slug, limit (default 10), "
-            "summary_only (bool, default true)."
-        ),
-    },
-    "memory_rollback": {
-        "fn": tool_rollback,
-        "description": (
-            "Restore a previous version from document_history. "
-            "Records current version in history first (reversible). "
-            "Args: source_table, slug, history_id, edited_by (default 'rollback')."
-        ),
-    },
-    "memory_list_capabilities": {
-        "fn": tool_list_capabilities,
-        "description": (
-            "Find team members by capabilities (AND logic). "
-            "Args: capabilities (list[str], required)."
-        ),
-    },
-    "memory_load_core": {
-        "fn": tool_load_core,
-        "description": (
-            "Bootstrap tool — returns config, active team roster, "
-            "standing orders, and always-inject operator intent in one call."
-        ),
-    },
-    "memory_patch": {
-        "fn": tool_patch,
-        "description": (
-            "Partial update — modifies only provided fields without replacing "
-            "the whole row. Records history. Args: source_table, slug, "
-            "edited_by (optional), change_note (optional), plus any field "
-            "names as kwargs."
-        ),
-    },
+    "memory_search": {"fn": tool_search, "description": "Semantic search across brain content tables."},
+    "memory_get": {"fn": tool_get, "description": "Fetch one row by source_table + slug."},
+    "memory_upsert": {"fn": tool_upsert, "description": "Insert or update a row. Records history, recomputes embedding."},
+    "memory_list_recent": {"fn": tool_list_recent, "description": "List recent rows from one table sorted by updated_at."},
+    "memory_history": {"fn": tool_history, "description": "Read document_history entries for a specific slug."},
+    "memory_rollback": {"fn": tool_rollback, "description": "Restore a previous version from document_history (reversible)."},
+    "memory_list_capabilities": {"fn": tool_list_capabilities, "description": "Find team members by capabilities (AND logic)."},
+    "memory_load_core": {"fn": tool_load_core, "description": "Bootstrap — returns config, roster, standing orders, operator intent."},
+    "memory_patch": {"fn": tool_patch, "description": "Partial update — modifies only provided fields. Records history."},
+    "memory_query_tool_log": {"fn": tool_query_tool_log, "description": "Query MCP tool call history for observability."},
 }
 
 
@@ -138,13 +82,19 @@ def _dispatch_tool(name: str, args: dict) -> dict:
     tool = TOOLS.get(name)
     if tool is None:
         raise ValueError(f"Unknown tool: {name}")
+    t0 = time.monotonic()
     conn = get_conn()
     try:
         result = tool["fn"](conn, **(args or {}))
         conn.commit()
+        duration_ms = (time.monotonic() - t0) * 1000
+        result_json = json.dumps(result, default=str)
+        _log_tool_call(name, args, len(result_json), duration_ms, True, None)
         return result
-    except Exception:
+    except Exception as exc:
         conn.rollback()
+        duration_ms = (time.monotonic() - t0) * 1000
+        _log_tool_call(name, args, None, duration_ms, False, str(exc))
         raise
     finally:
         put_conn(conn)

@@ -18,6 +18,8 @@ venv/
 # Runtime
 logs/
 snapshots/
+*.log
+*.pid
 
 # OS
 .DS_Store

@@ -30,6 +30,25 @@ MEMORY_SEARCH_SCHEMA = {
                 "timestamps — no body, no persona). Reduces payload significantly."
             ),
         },
+        "mode": {
+            "type": "string",
+            "enum": ["hybrid", "vector_only"],
+            "default": "hybrid",
+            "description": (
+                "Search mode. 'hybrid' (default) uses RRF fusion of semantic + "
+                "full-text search. 'vector_only' uses pure cosine-distance ranking "
+                "and returns a 'distance' field instead of 'rrf_score'."
+            ),
+        },
+        "distance_threshold": {
+            "type": "number",
+            "default": 0.7,
+            "description": (
+                "Max cosine distance for vector_only mode (0.0 = identical, "
+                "2.0 = opposite). Results beyond this threshold are filtered out. "
+                "Only applies when mode='vector_only'."
+            ),
+        },
     },
     "required": ["query"],
 }
@@ -213,6 +232,31 @@ MEMORY_PATCH_SCHEMA = {
     "required": ["source_table", "slug"],
 }
 
+MEMORY_QUERY_TOOL_LOG_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "tool_name": {
+            "type": "string",
+            "description": "Filter by tool name (e.g. 'memory_search')",
+        },
+        "session_id": {
+            "type": "string",
+            "description": "Filter by session ID",
+        },
+        "since_hours": {
+            "type": "integer",
+            "default": 24,
+            "description": "Look back this many hours (max 720)",
+        },
+        "limit": {
+            "type": "integer",
+            "default": 50,
+            "description": "Max results to return (max 200)",
+        },
+    },
+    "required": [],
+}
+
 SCHEMAS = {
     "memory_search": MEMORY_SEARCH_SCHEMA,
     "memory_get": MEMORY_GET_SCHEMA,
@@ -223,4 +267,5 @@ SCHEMAS = {
     "memory_list_capabilities": MEMORY_LIST_CAPABILITIES_SCHEMA,
     "memory_load_core": MEMORY_LOAD_CORE_SCHEMA,
     "memory_patch": MEMORY_PATCH_SCHEMA,
+    "memory_query_tool_log": MEMORY_QUERY_TOOL_LOG_SCHEMA,
 }

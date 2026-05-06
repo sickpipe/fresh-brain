@@ -42,9 +42,14 @@ def _sanitize_args(args: dict | None) -> dict | None:
 def log_tool_call(
     tool_name: str, args: dict | None, result_size: int | None,
     duration_ms: float, success: bool, error_message: str | None,
+    *, cached: bool | None = None,
 ):
     """Fire-and-forget INSERT into mcp_tool_log. Never raises."""
     try:
+        sanitized = _sanitize_args(args)
+        if cached is not None:
+            sanitized = dict(sanitized or {})
+            sanitized["_cached"] = cached
         conn = get_conn()
         try:
             with conn.cursor() as cur:
@@ -55,7 +60,7 @@ def log_tool_call(
                     "VALUES (%s, %s, %s, %s, %s, %s)",
                     (
                         tool_name,
-                        json.dumps(_sanitize_args(args), default=str),
+                        json.dumps(sanitized, default=str),
                         result_size,
                         duration_ms,
                         success,

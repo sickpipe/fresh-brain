@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 
 from db import get_conn, put_conn
 from health import health_bp
+from mcp_cache import cache_clear, cache_get, cache_set
 from mcp_tools import get as tool_get
 from mcp_tools import history as tool_history
 from mcp_tools import list_capabilities as tool_list_capabilities
@@ -80,10 +81,32 @@ TOOLS = {
 }
 
 
+CACHEABLE_TOOLS = {
+    "memory_load_core", "memory_get", "memory_list_recent",
+    "memory_list_capabilities", "memory_search",
+}
+WRITE_TOOLS = {
+    "memory_upsert", "memory_patch", "memory_rollback",
+    "memory_consolidate_notes",
+}
+
+
 def _dispatch_tool(name: str, args: dict) -> dict:
     tool = TOOLS.get(name)
     if tool is None:
         raise ValueError(f"Unknown tool: {name}")
+
+    # Check cache for read-only tools
+    cached = False
+    if name in CACHEABLE_TOOLS:
+        hit = cache_get(name, args)
+        if hit is not None:
+            cached = True
+            result_json = json.dumps(hit, default=str)
+            _log_tool_call(name, args, len(result_json), 0, True, None,
+                           cached=True)
+            return hit
+
     t0 = time.monotonic()
     conn = get_conn()
     try:
@@ -91,7 +114,14 @@ def _dispatch_tool(name: str, args: dict) -> dict:
         conn.commit()
         duration_ms = (time.monotonic() - t0) * 1000
         result_json = json.dumps(result, default=str)
-        _log_tool_call(name, args, len(result_json), duration_ms, True, None)
+        _log_tool_call(name, args, len(result_json), duration_ms, True, None,
+                       cached=False)
+
+        if name in CACHEABLE_TOOLS:
+            cache_set(name, args, result)
+        elif name in WRITE_TOOLS:
+            cache_clear()
+
         return result
     except Exception as exc:
         conn.rollback()

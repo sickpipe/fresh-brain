@@ -194,7 +194,7 @@ if [ "$GIT_CHANGED" = true ] || [ "$TOTAL_APPLIED" -gt 0 ]; then
     info "Restarting MCP servers (code or schema changed)..."
     START_SCRIPT="$SCRIPT_DIR/start-mcp.sh"
     if [ -x "$START_SCRIPT" ]; then
-        "$START_SCRIPT"
+        "$START_SCRIPT" --restart
     else
         warn "start-mcp.sh not found — restart servers manually"
     fi

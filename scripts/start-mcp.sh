@@ -16,6 +16,11 @@ ok()    { echo -e "${GREEN}[OK]${NC}    $1"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC}  $1"; }
 fail()  { echo -e "${RED}[FAIL]${NC}  $1"; exit 1; }
 
+FORCE_RESTART=false
+if [ "${1:-}" = "--restart" ]; then
+    FORCE_RESTART=true
+fi
+
 if [ ! -d "$SCRIPT_DIR/.venv" ]; then
     fail ".venv not found at $SCRIPT_DIR/.venv — run ./setup.sh first"
 fi
@@ -34,13 +39,19 @@ start_server() {
         fail "$name: server script not found at $script"
     fi
 
-    # Already running?
+    # Kill existing process if --restart flag was passed
     if [ -f "$pid_file" ]; then
         local existing
         existing=$(cat "$pid_file" 2>/dev/null || echo "")
         if [ -n "$existing" ] && kill -0 "$existing" 2>/dev/null; then
-            ok "$name already running (pid $existing)"
-            return 0
+            if [ "$FORCE_RESTART" = true ]; then
+                kill "$existing" 2>/dev/null || true
+                sleep 1
+                info "$name stopped (pid $existing)"
+            else
+                ok "$name already running (pid $existing)"
+                return 0
+            fi
         fi
     fi
 

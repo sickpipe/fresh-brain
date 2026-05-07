@@ -16,7 +16,16 @@ ok()    { echo -e "${GREEN}[OK]${NC}    $*"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 fail()  { echo -e "${RED}[FAIL]${NC}  $*" >&2; }
 
-trap 'if [ $? -ne 0 ]; then fail "Update aborted. Check messages above for details."; fi' EXIT
+DID_STASH=false
+
+trap '
+    if [ $? -ne 0 ]; then
+        fail "Update aborted. Check messages above for details."
+        if [ "$DID_STASH" = true ]; then
+            warn "Your local changes are saved in git stash. Restore with: git -C \"$REPO_DIR\" stash pop"
+        fi
+    fi
+' EXIT
 
 # --- Helpers ---
 db_exists() { psql -lqt 2>/dev/null | cut -d'|' -f1 | grep -qw "$1"; }
@@ -40,15 +49,18 @@ if ! git -C "$REPO_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
 fi
 ok "Git repo detected"
 
-# Clean working tree
+# Handle dirty working tree via auto-stash
 if ! git -C "$REPO_DIR" diff-index --quiet HEAD -- 2>/dev/null; then
-    fail "Working tree has uncommitted changes. Commit or stash them first."
-    exit 1
+    STASH_MSG="update.sh auto-stash $(date +%Y%m%d-%H%M%S)"
+    git -C "$REPO_DIR" stash push -m "$STASH_MSG" >/dev/null 2>&1
+    DID_STASH=true
+    info "Stashed local changes: $STASH_MSG"
+else
+    ok "Working tree is clean"
 fi
 if [ -n "$(git -C "$REPO_DIR" ls-files --others --exclude-standard)" ]; then
     warn "Untracked files present (continuing anyway)"
 fi
-ok "Working tree is clean"
 
 # PostgreSQL
 if ! pg_isready -q 2>/dev/null; then
@@ -200,6 +212,15 @@ if [ "$GIT_CHANGED" = true ] || [ "$TOTAL_APPLIED" -gt 0 ]; then
     fi
 else
     info "No changes — MCP servers left running"
+fi
+
+# Restore stashed changes
+if [ "$DID_STASH" = true ]; then
+    if git -C "$REPO_DIR" stash pop >/dev/null 2>&1; then
+        ok "Local changes restored"
+    else
+        warn "Stash pop had conflicts — resolve manually with: git -C \"$REPO_DIR\" stash pop"
+    fi
 fi
 
 echo ""

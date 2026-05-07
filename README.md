@@ -54,6 +54,8 @@ When the script finishes, restart Claude Code (Cmd+Q then reopen). The orchestra
 | `memory_rollback` | Restore a previous version from history |
 | `memory_list_capabilities` | Find team members by skill tags |
 | `load_core` | Single bootstrap call — returns config, roster, standing orders, and operator intent |
+| `memory_link_documents` | Create typed directional links between topic documents |
+| `memory_list_links` | List links for a topic document (outgoing, incoming, or both) |
 
 ## Prerequisites
 

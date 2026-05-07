@@ -25,7 +25,7 @@ INSERT INTO brain_config (key, value, description) VALUES
     ('personal_db_app_url',      '',                 'Personal dashboard URL (set during setup)'),
     ('business_db_display_name', '',                 'Display name for the business database (set when business pack installed)'),
     ('business_db_app_url',      '',                 'Business dashboard URL (set when business pack installed)'),
-    ('schema_version',        '8',                  'Brain schema version')
+    ('schema_version',        '12',                 'Brain schema version')
 ON CONFLICT DO NOTHING;
 
 -- ============================================================

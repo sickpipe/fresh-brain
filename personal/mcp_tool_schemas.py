@@ -11,7 +11,7 @@ PERSONAL_GET_SCHEMA = {
             "type": "string",
             "description": (
                 "Table to fetch from: workspaces, missions, tasks, "
-                "task_items, notes, assets, tags"
+                "task_items, notes, assets, tags, journal_entries"
             ),
         },
         "id": {
@@ -29,7 +29,7 @@ PERSONAL_LIST_SCHEMA = {
             "type": "string",
             "description": (
                 "Table to list from: workspaces, missions, tasks, "
-                "task_items, notes, assets, tags"
+                "task_items, notes, assets, tags, journal_entries"
             ),
         },
         "mission_id": {
@@ -74,7 +74,7 @@ PERSONAL_CREATE_SCHEMA = {
             "type": "string",
             "description": (
                 "Table to insert into: workspaces, missions, tasks, "
-                "task_items, notes, assets, tags"
+                "task_items, notes, assets, tags, journal_entries"
             ),
         },
         "data": {
@@ -84,7 +84,8 @@ PERSONAL_CREATE_SCHEMA = {
                 "missions(name, slug), tasks(mission_id, title), "
                 "notes(title, content), task_items(task_id, title), "
                 "tags(name), workspaces(slug, name, type), "
-                "assets(file_path, original_filename, file_type, sha256_hash)"
+                "assets(file_path, original_filename, file_type, sha256_hash), "
+                "journal_entries(entry_date, content)"
             ),
         },
     },
@@ -131,7 +132,7 @@ PERSONAL_SEARCH_SCHEMA = {
             "items": {"type": "string"},
             "description": (
                 "Tables to search (default: all searchable). "
-                "Searchable: tasks, notes, task_items, assets"
+                "Searchable: tasks, notes, task_items, assets, journal_entries"
             ),
         },
     },

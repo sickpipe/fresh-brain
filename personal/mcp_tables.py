@@ -8,11 +8,12 @@ which tables support full-text search, and which get history tracking.
 ACCESSIBLE_TABLES = [
     "workspaces", "missions", "tasks", "task_items",
     "notes", "assets", "tags", "personal_config", "document_history",
+    "journal_entries",
 ]
 
-SEARCHABLE_TABLES = ["tasks", "notes", "task_items", "assets"]
+SEARCHABLE_TABLES = ["tasks", "notes", "task_items", "assets", "journal_entries"]
 
-HISTORY_TABLES = {"notes": "content", "missions": "description", "tasks": "description"}
+HISTORY_TABLES = {"notes": "content", "missions": "description", "tasks": "description", "journal_entries": "content"}
 
 SELECT_COLUMNS = {
     "workspaces": [
@@ -58,6 +59,11 @@ SELECT_COLUMNS = {
         "history_id", "source_table", "source_key", "body",
         "edited_by", "change_note", "edited_at",
     ],
+    "journal_entries": [
+        "id", "entry_date", "content", "grounded_response",
+        "linked_topics", "mood_tags", "themes",
+        "created_at", "updated_at", "deleted_at",
+    ],
 }
 
 SUMMARY_COLUMNS = {
@@ -70,6 +76,9 @@ SUMMARY_COLUMNS = {
     "tags": ["id", "name", "category", "color"],
     "personal_config": ["key", "value", "description", "updated_at"],
     "document_history": ["history_id", "source_table", "source_key", "edited_by", "change_note", "edited_at"],
+    "journal_entries": [
+        "id", "entry_date", "themes", "mood_tags", "linked_topics", "updated_at",
+    ],
 }
 
 WRITABLE_COLUMNS = {
@@ -99,6 +108,10 @@ WRITABLE_COLUMNS = {
     ],
     "tags": ["name", "category", "description", "color"],
     "personal_config": ["value", "description"],
+    "journal_entries": [
+        "entry_date", "content", "grounded_response",
+        "linked_topics", "mood_tags", "themes",
+    ],
 }
 
 REQUIRED_ON_CREATE = {
@@ -110,6 +123,7 @@ REQUIRED_ON_CREATE = {
     "assets": ["file_path", "original_filename", "file_type", "sha256_hash"],
     "tags": ["name"],
     "personal_config": ["key", "value"],
+    "journal_entries": ["entry_date", "content"],
 }
 
-HAS_SOFT_DELETE = {"missions", "tasks", "task_items", "notes", "assets"}
+HAS_SOFT_DELETE = {"missions", "tasks", "task_items", "notes", "assets", "journal_entries"}

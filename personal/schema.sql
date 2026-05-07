@@ -1,4 +1,4 @@
--- Personal Database Schema (v19)
+-- Personal Database Schema (v20)
 -- Generated from live database: 2026-04-28
 -- Source of truth for fresh installs. Kept in sync with migrations.
 --
@@ -16,6 +16,11 @@
 -- rather than gating on MAX(version) from schema_version. schema_version
 -- is now informational only — kept for continuity but no longer consulted
 -- by the runner.
+--
+-- v20 (personal/migrations/002_journal_entries.sql): journal_entries table
+-- for the Grounded Journal feature — freeform operator reflections with
+-- AI-grounded responses, linked brain topics, mood/theme tags, and
+-- full-text search.
 
 -- ============================================================
 -- Function: touch_updated_at()
@@ -293,6 +298,40 @@ CREATE TABLE document_history (
 );
 
 CREATE INDEX idx_document_history_source ON document_history(source_table, source_key, edited_at DESC);
+
+-- ============================================================
+-- journal_entries: Grounded Journal (v20)
+-- ============================================================
+-- Freeform operator reflections with AI-grounded responses. Each entry
+-- captures the raw journal text, the AI's response (grounded in brain
+-- wiki, past journals, ideas), which brain topic_document slugs were
+-- referenced, mood/theme tags, and full-text search.
+CREATE TABLE journal_entries (
+    id                  SERIAL PRIMARY KEY,
+    entry_date          DATE NOT NULL,
+    content             TEXT NOT NULL,
+    grounded_response   TEXT,
+    linked_topics       TEXT[],
+    mood_tags           TEXT[],
+    themes              TEXT[],
+    search_tsv          tsvector GENERATED ALWAYS AS (
+                            to_tsvector('english',
+                                coalesce(content, '') || ' ' ||
+                                coalesce(grounded_response, ''))
+                        ) STORED,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at          TIMESTAMPTZ
+);
+
+CREATE INDEX idx_journal_entries_search ON journal_entries USING GIN (search_tsv);
+CREATE INDEX idx_journal_entries_date ON journal_entries(entry_date DESC) WHERE deleted_at IS NULL;
+CREATE INDEX idx_journal_entries_mood_tags ON journal_entries USING GIN (mood_tags);
+CREATE INDEX idx_journal_entries_themes ON journal_entries USING GIN (themes);
+CREATE INDEX idx_journal_entries_linked_topics ON journal_entries USING GIN (linked_topics);
+
+CREATE TRIGGER trg_journal_entries_updated_at
+    BEFORE UPDATE ON journal_entries FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
 
 -- ============================================================
 -- applied_migrations: per-filename migration ledger (v19)

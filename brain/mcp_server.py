@@ -1,4 +1,4 @@
-"""brain/mcp_server.py — Flask MCP server for brain v2 (11 tools)."""
+"""brain/mcp_server.py — Flask MCP server for brain v2 (13 tools)."""
 
 import json
 import logging
@@ -22,6 +22,8 @@ from mcp_tools import patch as tool_patch
 from mcp_tools import rollback as tool_rollback
 from mcp_tools import search as tool_search
 from mcp_tools import upsert as tool_upsert
+from mcp_tools import link_documents as tool_link_documents
+from mcp_tools import list_links as tool_list_links
 from mcp_tools_archivist import consolidate_notes as tool_consolidate_notes
 from mcp_tools_observability import log_tool_call as _log_tool_call
 from mcp_tools_observability import query_tool_log as tool_query_tool_log
@@ -78,16 +80,18 @@ TOOLS = {
     "memory_patch": {"fn": tool_patch, "description": "Partial update — modifies only provided fields. Records history."},
     "memory_query_tool_log": {"fn": tool_query_tool_log, "description": "Query MCP tool call history for observability."},
     "memory_consolidate_notes": {"fn": tool_consolidate_notes, "description": "Archive old session notes into digest topic documents."},
+    "memory_link_documents": {"fn": tool_link_documents, "description": "Create a directional link between two topic documents."},
+    "memory_list_links": {"fn": tool_list_links, "description": "List all cross-links for a topic document."},
 }
 
 
 CACHEABLE_TOOLS = {
     "memory_load_core", "memory_get", "memory_list_recent",
-    "memory_list_capabilities", "memory_search",
+    "memory_list_capabilities", "memory_search", "memory_list_links",
 }
 WRITE_TOOLS = {
     "memory_upsert", "memory_patch", "memory_rollback",
-    "memory_consolidate_notes",
+    "memory_consolidate_notes", "memory_link_documents",
 }
 
 

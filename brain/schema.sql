@@ -1,4 +1,4 @@
--- Brain Database Schema (v12)
+-- Brain Database Schema (v13)
 -- Generated from live database: 2026-05-06
 -- Source of truth for fresh installs. Kept in sync with migrations.
 --
@@ -32,6 +32,10 @@
 -- v12 (011_session_notes_consolidated_at.sql): session_notes gains
 -- consolidated_at column — marks notes archived by the consolidation
 -- agent so search excludes them by default.
+--
+-- v13 (012_topic_document_links.sql): topic_document_links join table
+-- for directional cross-references between topic_documents — enables
+-- the compounding wiki knowledge graph.
 
 -- Extensions
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
@@ -418,6 +422,31 @@ CREATE TABLE mcp_tool_log (
 CREATE INDEX idx_mcp_tool_log_called_at ON mcp_tool_log (called_at DESC);
 CREATE INDEX idx_mcp_tool_log_tool_name ON mcp_tool_log (tool_name);
 CREATE INDEX idx_mcp_tool_log_session_id ON mcp_tool_log (session_id) WHERE session_id IS NOT NULL;
+
+-- ============================================================
+-- topic_document_links: directional cross-references (v13)
+-- ============================================================
+-- Each row represents source_slug → target_slug with a typed relationship.
+-- Enables the compounding wiki: documents can reference, derive from,
+-- supersede, or relate to each other in a traversable knowledge graph.
+CREATE TABLE topic_document_links (
+    source_slug TEXT NOT NULL REFERENCES topic_documents(slug) ON DELETE CASCADE,
+    target_slug TEXT NOT NULL REFERENCES topic_documents(slug) ON DELETE CASCADE,
+    link_type   TEXT NOT NULL CHECK (link_type IN (
+        'references', 'derived_from', 'supersedes', 'related'
+    )),
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at  TIMESTAMPTZ,
+    PRIMARY KEY (source_slug, target_slug, link_type)
+);
+
+CREATE INDEX idx_topic_document_links_source ON topic_document_links(source_slug) WHERE deleted_at IS NULL;
+CREATE INDEX idx_topic_document_links_target ON topic_document_links(target_slug) WHERE deleted_at IS NULL;
+CREATE INDEX idx_topic_document_links_type ON topic_document_links(link_type) WHERE deleted_at IS NULL;
+
+CREATE TRIGGER trg_topic_document_links_updated_at
+    BEFORE UPDATE ON topic_document_links FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
 
 -- ============================================================
 -- applied_migrations: per-filename migration ledger (v7)

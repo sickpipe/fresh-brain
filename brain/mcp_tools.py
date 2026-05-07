@@ -201,6 +201,71 @@ def _upsert_config(conn, key: str, value: str, **metadata) -> dict:
     return {"source_table": "brain_config", "slug": returned[0], "chunk_count": 0}
 
 
+# -------------------------------------------------------------- link tools
+VALID_LINK_TYPES = {"references", "derived_from", "supersedes", "related"}
+
+
+def link_documents(
+    conn, source_slug: str, target_slug: str, link_type: str
+) -> dict:
+    """Create a directional link between two topic documents."""
+    if link_type not in VALID_LINK_TYPES:
+        raise ValueError(
+            f"link_documents: invalid link_type '{link_type}'. "
+            f"Must be one of: {', '.join(sorted(VALID_LINK_TYPES))}"
+        )
+    with conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO topic_document_links (source_slug, target_slug, link_type) "
+            "VALUES (%s, %s, %s) "
+            "ON CONFLICT DO NOTHING",
+            (source_slug, target_slug, link_type),
+        )
+        created = cur.rowcount > 0
+    return {
+        "source_slug": source_slug,
+        "target_slug": target_slug,
+        "link_type": link_type,
+        "created": created,
+    }
+
+
+def list_links(conn, slug: str, direction: str = "both") -> dict:
+    """List all links for a topic document."""
+    if direction not in ("outgoing", "incoming", "both"):
+        raise ValueError(
+            f"list_links: invalid direction '{direction}'. "
+            "Must be one of: outgoing, incoming, both"
+        )
+    conditions = []
+    params = []
+    if direction == "outgoing":
+        conditions.append("source_slug = %s")
+        params.append(slug)
+    elif direction == "incoming":
+        conditions.append("target_slug = %s")
+        params.append(slug)
+    else:
+        conditions.append("(source_slug = %s OR target_slug = %s)")
+        params.extend([slug, slug])
+    conditions.append("deleted_at IS NULL")
+
+    sql = (
+        "SELECT source_slug, target_slug, link_type, created_at "
+        "FROM topic_document_links "
+        f"WHERE {' AND '.join(conditions)} "
+        "ORDER BY created_at"
+    )
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute(sql, params)
+        rows = cur.fetchall()
+    return {
+        "slug": slug,
+        "direction": direction,
+        "links": [_row_to_json(dict(r)) for r in rows],
+    }
+
+
 # --------------------------------------------- re-exports from query module
 from mcp_tools_query import (  # noqa: E402, F401
     history,

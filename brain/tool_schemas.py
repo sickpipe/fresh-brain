@@ -275,6 +275,43 @@ MEMORY_CONSOLIDATE_NOTES_SCHEMA = {
     "required": [],
 }
 
+MEMORY_LINK_DOCUMENTS_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "source_slug": {
+            "type": "string",
+            "description": "Slug of the source topic document",
+        },
+        "target_slug": {
+            "type": "string",
+            "description": "Slug of the target topic document",
+        },
+        "link_type": {
+            "type": "string",
+            "enum": ["references", "derived_from", "supersedes", "related"],
+            "description": "Type of link: references, derived_from, supersedes, related",
+        },
+    },
+    "required": ["source_slug", "target_slug", "link_type"],
+}
+
+MEMORY_LIST_LINKS_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "slug": {
+            "type": "string",
+            "description": "Slug of the topic document to list links for",
+        },
+        "direction": {
+            "type": "string",
+            "enum": ["outgoing", "incoming", "both"],
+            "default": "both",
+            "description": "Filter links by direction: outgoing (from this doc), incoming (to this doc), both (default)",
+        },
+    },
+    "required": ["slug"],
+}
+
 SCHEMAS = {
     "memory_search": MEMORY_SEARCH_SCHEMA,
     "memory_get": MEMORY_GET_SCHEMA,
@@ -287,4 +324,6 @@ SCHEMAS = {
     "memory_patch": MEMORY_PATCH_SCHEMA,
     "memory_query_tool_log": MEMORY_QUERY_TOOL_LOG_SCHEMA,
     "memory_consolidate_notes": MEMORY_CONSOLIDATE_NOTES_SCHEMA,
+    "memory_link_documents": MEMORY_LINK_DOCUMENTS_SCHEMA,
+    "memory_list_links": MEMORY_LIST_LINKS_SCHEMA,
 }

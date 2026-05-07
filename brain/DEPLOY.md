@@ -14,7 +14,7 @@ python mcp_server.py          # 127.0.0.1:5050
 
 `brain/.env` (chmod 600, gitignored):
 - `DATABASE_BRAIN_APP_URL` — local Postgres (`postgresql://spock@127.0.0.1:5432/brain`)
-- `BRAIN_MCP_TOKEN` — bearer token for `/mcp`
+- `BRAIN_MCP_TOKEN` — bearer token for `/mcp` and `/context-inject`
 - `BRAIN_MCP_PORT` — port override (default 5050)
 
 ## Smoke test

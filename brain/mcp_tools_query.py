@@ -35,7 +35,7 @@ def list_recent(
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         cur.execute(
             f"SELECT {_cols(source_table, summary_only)} FROM {source_table} "
-            f"{not_deleted} ORDER BY {order_col} DESC LIMIT %s",
+            f"{not_deleted} ORDER BY {order_col} DESC NULLS LAST LIMIT %s",
             (limit,),
         )
         rows = [_row_to_json(dict(r)) for r in cur.fetchall()]

@@ -32,6 +32,7 @@ from mcp_tools import (
     update as tool_update,
 )
 from mcp_tool_schemas import SCHEMAS as TOOL_SCHEMAS
+from rate_limit import MCP_LIMIT, init_rate_limiting, limiter
 
 _DIR = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(os.path.join(_DIR, ".env"))
@@ -48,7 +49,7 @@ def _load_token() -> str:
     tok = os.getenv("PERSONAL_MCP_TOKEN")
     if not tok:
         tok = "dev-" + secrets.token_urlsafe(24)
-        logger.warning("PERSONAL_MCP_TOKEN unset — generated ephemeral token: %s", tok)
+        logger.warning("PERSONAL_MCP_TOKEN unset — generated ephemeral token (length=%d)", len(tok))
     return tok
 
 
@@ -148,9 +149,11 @@ def create_app() -> Flask:
     app = Flask(__name__)
     app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 
+    init_rate_limiting(app)
     app.register_blueprint(health_bp)
 
     @app.post("/mcp")
+    @limiter.limit(MCP_LIMIT)
     def mcp():
         if not _check_auth():
             return jsonify({"error": "unauthorized"}), 401
@@ -247,6 +250,6 @@ app = create_app()
 
 if __name__ == "__main__":
     port = int(os.getenv("PERSONAL_MCP_PORT", "5051"))
-    logger.info("Starting personal MCP server on 0.0.0.0:%d", port)
-    logger.info("Bearer token: %s", PERSONAL_MCP_TOKEN)
-    app.run(host="0.0.0.0", port=port, debug=False)
+    logger.info("Starting personal MCP server on 127.0.0.1:%d", port)
+    logger.info("Bearer token loaded (length=%d)", len(PERSONAL_MCP_TOKEN))
+    app.run(host="127.0.0.1", port=port, debug=False)

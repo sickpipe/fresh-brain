@@ -45,7 +45,7 @@ def _load_token() -> str:
     tok = os.getenv("BRAIN_MCP_TOKEN")
     if not tok:
         tok = "dev-" + secrets.token_urlsafe(24)
-        logger.warning("BRAIN_MCP_TOKEN unset — generated ephemeral token: %s", tok)
+        logger.warning("BRAIN_MCP_TOKEN unset — generated ephemeral token (length=%d)", len(tok))
     return tok
 
 
@@ -280,5 +280,5 @@ app = create_app()
 if __name__ == "__main__":
     port = int(os.getenv("BRAIN_MCP_PORT", "5050"))
     logger.info("Starting brain MCP server on 127.0.0.1:%d", port)
-    logger.info("Bearer token: %s", BRAIN_MCP_TOKEN)
+    logger.info("Bearer token loaded (length=%d)", len(BRAIN_MCP_TOKEN))
     app.run(host="127.0.0.1", port=port, debug=False)

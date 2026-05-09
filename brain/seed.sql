@@ -1,5 +1,5 @@
 -- Brain Database Seed Data (Template Edition)
--- Ships lean: 5 team members, 8 standing orders, 2 topic docs.
+-- Ships lean: 5 team members, 8 standing orders, 3 topic docs.
 -- Starter packs offer expansion after first-run setup.
 
 -- ============================================================
@@ -355,7 +355,8 @@ If deliverables were shipped, write a ship log to `memory_entries` with `entry_t
 3. **Set session_ended_at explicitly** — no silent defaults.
 4. **Slug format** — `session-YYYY-MM-DD-HHMMSS` (mechanical, collision-proof).
 5. **Thin entries are fine** — if the session was trivial, skip Steps 1 and 3 but still write a one-liner session note. Gaps in the log are worse than thin entries.
-6. **Be concrete** — file paths, decisions, current state. Not narrative.',
+6. **Be concrete** — file paths, decisions, current state. Not narrative.
+7. **Role references, not character names** — in session notes and ship logs, reference team members by role or slug (e.g., "the researcher," "backend-dev"), not by their themed display name. This keeps records theme-agnostic and survives any future re-theme.',
  'When operator signals session end, run full close-out: update touched DB records, write session note, log ship entries.',
  'system', TRUE,
  'Operator signals session end: "end session", "wrap up", "we''re done", or similar stop signals')
@@ -506,6 +507,62 @@ When health status changes (new supplement, lab results, symptom), updates all r
 *Note: Database Migration Protocol and Template Propagation Check now ship by default and are no longer optional packs.*',
  'starter-packs',
  'Optional team member packs and standing order packs offered to new users after first-run setup.',
+ 'system'),
+
+('retheme-protocol', 'Re-Theme Protocol',
+ '# Re-Theme Protocol
+
+## Purpose
+Procedure for switching the AI team''s character theme after initial setup. The orchestrator follows this when the operator requests a theme change (e.g., "apply theme: Star Trek" or "switch to The Office").
+
+## Theme-Sensitive Fields
+
+### brain_config
+| Key | Description |
+|-----|-------------|
+| `theme` | Theme identifier (e.g., `star-trek`, `the-office`, `default`) |
+| `orchestrator_name` | Orchestrator display name |
+| `orchestrator_persona` | Persona description with character flavor |
+| `orchestrator_catchphrase` | Signature phrase |
+| `operator_name` | How the system addresses the operator |
+| `operator_title` | Operator''s in-universe title |
+
+### team_members
+Each row identified by role slug (never changes). Patchable: `display_name`, `persona`, `summary`, `body`.
+
+### operator_intent
+Row `orchestrator-mannerism` (section: identity): `title`, `summary`.
+
+## Process
+
+1. **Receive request** — operator names a theme
+2. **Generate mapping** — for each role slug, determine character name, persona snippet, optional catchphrase. Also set orchestrator identity and operator title.
+3. **Confirm with operator** — present the full mapping table, wait for approval
+4. **Apply patches in order:**
+   - 4a: `brain_config` (theme name, orchestrator identity, operator title)
+   - 4b: `team_members` (display_name, persona, summary, body per slug)
+   - 4c: `operator_intent` (orchestrator-mannerism title + summary)
+5. **Verify** — run `load_core()`, confirm all fields reflect new theme
+
+## Revert to Default
+Treat `default` as a theme: orchestrator → "Orchestrator", operator → "Operator", each team member → clean role title, no character flavor.
+
+## Theme Ideas
+No pre-built manifests stored — the LLM generates mappings on the fly. Inspiration:
+- **Star Trek** — Starfleet bridge crew, Captain
+- **Star Wars** — Jedi/rebels/droids, Master
+- **The Office** — Dunder Mifflin staff, Regional Manager
+- **Lord of the Rings** — Fellowship, Steward/King
+- **The Big Lebowski** — bowling buddies, Dude
+
+## Important Notes
+1. **Slugs are immutable** — role slugs never change during a re-theme
+2. **Logs use role references** — session notes and ship logs use role/slug, not character names (end-session rule 7)
+3. **Historical records retain original names** — this is expected and correct
+4. **Body field preservation** — update character flavor but preserve capability instructions
+5. **No stored manifests** — any universe works without pre-configuration',
+ 'system',
+ 'Procedure for switching the AI team''s character theme — covers patchable fields, step-by-step process, revert to default, and theme ideas.',
  'system')
 
 ON CONFLICT DO NOTHING;

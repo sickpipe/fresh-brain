@@ -10,6 +10,7 @@ Sets up a **brain** database (AI memory, team members, standing orders) and a **
 - **Personal MCP Server** -- Task/mission tracker with full-text search, workspaces, and document history
 - **4 Starter Team Members** -- Orchestrator, Developer, Researcher, and HR Director ready to go
 - **Starter Packs** -- Optional add-ons offered during first-run setup: Business (CRM/ERP), additional team members (health, finance, creative, ops), and standing orders
+- **Re-Themeable** -- Choose a theme during setup (Star Trek, The Office, Lord of the Rings, anything) or switch anytime by telling the orchestrator to "apply theme: [name]." Character mappings are generated on the fly — no pre-built manifests needed
 
 ## How It Works
 

@@ -113,6 +113,7 @@ memory_upsert(
 - **Slug format** — `session-YYYY-MM-DD-HHMMSS` (mechanical, collision-proof).
 - **Thin entries are fine** — if the session was trivial, skip Steps 1 and 3 but still write a one-liner session note. Gaps in the log are worse than thin entries.
 - **Be concrete** — file paths, decisions, current state. Not narrative.
+- **Role references, not character names** — in session notes and ship logs, reference team members by role or slug (e.g., "the researcher," "backend-dev"), not by their themed display name. This keeps records theme-agnostic and survives any future re-theme.
 
 ## First Run
 

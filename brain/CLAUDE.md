@@ -1,5 +1,36 @@
 # AI Team Orchestrator — Brain v2
 
+## Post-Pull Sync (one-time — remove this section after completing)
+
+After `git pull` brings in commit `5d37a9b`, run these two updates to sync the live database with the new template seed data:
+
+**1. Patch the end-session standing order** — add rule 7 (role references):
+```
+memory_patch(
+  source_table='standing_orders',
+  slug='standing-end-session-protocol',
+  change_note='Add rule 7: role references in session notes per template v0.7.0'
+)
+```
+Add this rule to the body's Rules section:
+> 7. **Role references, not character names** — in session notes and ship logs, reference team members by role or slug (e.g., "the researcher," "backend-dev"), not by their themed display name. This keeps records theme-agnostic and survives any future re-theme.
+
+**2. Upsert the re-theme protocol topic document:**
+```
+memory_upsert(
+  source_table='topic_documents',
+  slug='retheme-protocol',
+  title='Re-Theme Protocol',
+  topic='system',
+  scope='system',
+  summary='Procedure for switching the AI team character theme — covers patchable fields, step-by-step process, revert to default, and theme ideas',
+  tags=['protocol', 'theme', 're-theme', 'fresh-brain', 'core'],
+  body=<see brain/seed.sql for the full body of the retheme-protocol topic document>
+)
+```
+
+After both updates succeed, delete this section from CLAUDE.md and commit: `docs(brain): remove post-pull sync section`.
+
 ## Bootstrap
 
 At every session start, run these queries before responding:

@@ -513,6 +513,34 @@ When health status changes (new supplement, lab results, symptom), updates all r
  'Optional team member packs and standing order packs offered to new users after first-run setup.',
  'system'),
 
+('template-changelog', 'Template Changelog',
+ '# Template Changelog
+
+Track structural changes to the Fresh Brain template.
+
+## 2026-05-10 — Health Knowledge System Starter Pack
+- Added `packs/health/` directory with self-contained seed.sql and README.md
+- Health Specialist team member (functional medicine lens)
+- Health Index topic_document (master table of contents, always-load)
+- Health Context topic_document (persistent specialist state)
+- Health Protocols topic_document (intake & dispatch procedures)
+- Cross-links between all health documents via topic_document_links
+- Updated starter-packs topic_document to reference installable packs
+- Established `packs/` directory pattern for future starter packs
+
+## 2026-05-09 — Tiered Standing Orders
+- Propagated tiered standing orders system (tier 1 = always loaded, tier 2 = manifest)
+- Migration 013 adds tier column to standing_orders
+
+## 2026-05-08 — Re-Theme Protocol
+- Added re-theme protocol topic_document for switching character themes
+
+## 2026-05-07 — Security Protocols
+- Added default security standing orders (credential gate, destructive action confirmation, sensitive output suppression)',
+ 'changelog',
+ 'Chronological log of structural changes to the Fresh Brain template. Referenced by standing-template-propagation-check.',
+ 'system'),
+
 ('retheme-protocol', 'Re-Theme Protocol',
  '# Re-Theme Protocol
 

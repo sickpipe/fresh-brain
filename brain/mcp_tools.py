@@ -266,6 +266,20 @@ def list_links(conn, slug: str, direction: str = "both") -> dict:
     }
 
 
+# -------------------------------------------------------- log_order_fire
+def log_order_fire(conn, order_slug: str, match_method: str, session_slug: str = None, trigger_context: str = None) -> dict:
+    """Record a standing order fire in the audit log."""
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute(
+            """INSERT INTO standing_order_fires (order_slug, match_method, session_slug, trigger_context)
+               VALUES (%s, %s, %s, %s)
+               RETURNING id, order_slug, fired_at, match_method""",
+            (order_slug, match_method, session_slug, trigger_context[:200] if trigger_context else None),
+        )
+        row = cur.fetchone()
+    return {"logged": True, "fire_id": row["id"], "order_slug": row["order_slug"], "fired_at": str(row["fired_at"]), "match_method": row["match_method"]}
+
+
 # --------------------------------------------- re-exports from query module
 from mcp_tools_query import (  # noqa: E402, F401
     history,

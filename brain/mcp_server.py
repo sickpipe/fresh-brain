@@ -1,4 +1,4 @@
-"""brain/mcp_server.py — Flask MCP server for brain v2 (13 tools)."""
+"""brain/mcp_server.py — Flask MCP server for brain v2 (14 tools)."""
 
 import json
 import logging
@@ -24,6 +24,7 @@ from mcp_tools import search as tool_search
 from mcp_tools import upsert as tool_upsert
 from mcp_tools import link_documents as tool_link_documents
 from mcp_tools import list_links as tool_list_links
+from mcp_tools import log_order_fire as tool_log_order_fire
 from mcp_tools_archivist import consolidate_notes as tool_consolidate_notes
 from mcp_tools_observability import log_tool_call as _log_tool_call
 from mcp_tools_observability import query_tool_log as tool_query_tool_log
@@ -82,6 +83,7 @@ TOOLS = {
     "memory_consolidate_notes": {"fn": tool_consolidate_notes, "description": "Archive old session notes into digest topic documents."},
     "memory_link_documents": {"fn": tool_link_documents, "description": "Create a directional link between two topic documents."},
     "memory_list_links": {"fn": tool_list_links, "description": "List all cross-links for a topic document."},
+    "memory_log_order_fire": {"fn": tool_log_order_fire, "description": "Record a standing order fire in the audit log."},
 }
 
 
@@ -92,6 +94,7 @@ CACHEABLE_TOOLS = {
 WRITE_TOOLS = {
     "memory_upsert", "memory_patch", "memory_rollback",
     "memory_consolidate_notes", "memory_link_documents",
+    "memory_log_order_fire",
 }
 
 

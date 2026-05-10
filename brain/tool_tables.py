@@ -45,7 +45,8 @@ TABLE_COLUMNS = {
     ],
     "standing_orders": [
         "slug", "title", "body", "summary", "scope", "active",
-        "trigger_pattern", "effective_from", "tags", "embedding_model",
+        "trigger_pattern", "effective_from", "tier", "manifest_summary",
+        "signal_tags", "tags", "embedding_model",
         "last_accessed_at", "access_count",
         "created_at", "updated_at", "deleted_at",
     ],
@@ -86,7 +87,8 @@ SUMMARY_COLUMNS = {
     ],
     "standing_orders": [
         "slug", "title", "summary", "scope", "active",
-        "trigger_pattern", "tags", "updated_at",
+        "trigger_pattern", "tier", "manifest_summary",
+        "signal_tags", "tags", "updated_at",
     ],
     "ideas": [
         "slug", "title", "status", "category", "summary",
@@ -118,7 +120,8 @@ UPSERT_META_COLUMNS = {
         "title", "session_ended_at", "summary", "projects_touched", "tags",
     ],
     "standing_orders": [
-        "title", "scope", "active", "effective_from", "tags",
+        "title", "scope", "active", "effective_from", "tier",
+        "manifest_summary", "signal_tags", "tags",
         "summary", "trigger_pattern",
     ],
     "ideas": [

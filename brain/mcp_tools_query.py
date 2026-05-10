@@ -5,6 +5,7 @@ Split from mcp_tools.py for Dark Code 300-line compliance.
 Contains: list_recent, history, rollback, list_capabilities, load_core, patch.
 """
 
+import json
 import logging
 
 from psycopg2.extras import RealDictCursor
@@ -146,7 +147,7 @@ def list_capabilities(conn, capabilities: list[str]) -> dict:
 
 # ---------------------------------------------------------------- load_core
 def load_core(conn) -> dict:
-    """Single bootstrap call — returns config, active team roster, active standing orders, and always-inject operator intent."""
+    """Single bootstrap call — returns config, active team roster, tiered standing orders, signal tag map, and always-inject operator intent."""
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         cur.execute("SELECT key, value, description FROM brain_config ORDER BY key")
         config = [_row_to_json(dict(r)) for r in cur.fetchall()]
@@ -158,12 +159,29 @@ def load_core(conn) -> dict:
         )
         team = [_row_to_json(dict(r)) for r in cur.fetchall()]
 
-        summary_cols = ", ".join(SUMMARY_COLUMNS["standing_orders"])
+        # Tier 1: full body for always-loaded orders
+        tier1_cols = ", ".join(TABLE_COLUMNS["standing_orders"])
         cur.execute(
-            f"SELECT {summary_cols} FROM standing_orders "
-            "WHERE active = true AND deleted_at IS NULL ORDER BY updated_at DESC"
+            f"SELECT {tier1_cols} FROM standing_orders "
+            "WHERE tier = 1 AND active = true AND deleted_at IS NULL "
+            "ORDER BY updated_at DESC"
         )
-        orders = [_row_to_json(dict(r)) for r in cur.fetchall()]
+        tier1_orders = [_row_to_json(dict(r)) for r in cur.fetchall()]
+
+        # Tier 2: compact manifest only
+        cur.execute(
+            "SELECT slug, manifest_summary, signal_tags FROM standing_orders "
+            "WHERE tier = 2 AND active = true AND deleted_at IS NULL "
+            "ORDER BY updated_at DESC"
+        )
+        tier2_manifest = [_row_to_json(dict(r)) for r in cur.fetchall()]
+
+        # Signal tag map from brain_config
+        cur.execute(
+            "SELECT value FROM brain_config WHERE key = 'signal_tag_map'"
+        )
+        tag_row = cur.fetchone()
+        signal_tag_map = json.loads(tag_row["value"]) if tag_row else {}
 
         summary_cols = ", ".join(SUMMARY_COLUMNS["operator_intent"])
         cur.execute(
@@ -175,7 +193,9 @@ def load_core(conn) -> dict:
     return {
         "config": config,
         "team_members": team,
-        "standing_orders": orders,
+        "tier1_orders": tier1_orders,
+        "tier2_manifest": tier2_manifest,
+        "signal_tag_map": signal_tag_map,
         "operator_intent": intent,
     }
 

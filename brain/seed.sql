@@ -25,7 +25,8 @@ INSERT INTO brain_config (key, value, description) VALUES
     ('personal_db_app_url',      '',                 'Personal dashboard URL (set during setup)'),
     ('business_db_display_name', '',                 'Display name for the business database (set when business pack installed)'),
     ('business_db_app_url',      '',                 'Business dashboard URL (set when business pack installed)'),
-    ('schema_version',        '12',                 'Brain schema version')
+    ('signal_tag_map',        '{"remember":["standing-remember-this-protocol"]}', 'Maps operator signal tags to standing order slugs. JSON object: tag -> [slugs]. Loaded at bootstrap.'),
+    ('schema_version',        '14',                 'Brain schema version')
 ON CONFLICT DO NOTHING;
 
 -- ============================================================
@@ -176,7 +177,7 @@ ON CONFLICT DO NOTHING;
 -- standing_orders: core rules (8)
 -- ============================================================
 
-INSERT INTO standing_orders (slug, title, body, summary, scope, active, trigger_pattern) VALUES
+INSERT INTO standing_orders (slug, title, body, summary, scope, active, trigger_pattern, tier) VALUES
 ('standing-work-delegation-protocol', 'Work Delegation Protocol',
  '# Work Delegation Protocol
 
@@ -198,11 +199,12 @@ Any time the operator requests implementation work — code, research, analysis,
 Trigger the hiring protocol: research the needed role, create a new team member profile, then delegate.',
  'All implementation work goes to team members. The orchestrator never implements directly.',
  'system', TRUE,
- 'Any implementation request: code, research, analysis, or specialist work')
+ 'Any implementation request: code, research, analysis, or specialist work',
+ 1)
 
 ON CONFLICT DO NOTHING;
 
-INSERT INTO standing_orders (slug, title, body, summary, scope, active, trigger_pattern) VALUES
+INSERT INTO standing_orders (slug, title, body, summary, scope, active, trigger_pattern, tier, signal_tags) VALUES
 ('standing-remember-this-protocol', 'Remember This — Storage Protocol',
  '# Remember This — Storage Protocol
 
@@ -228,7 +230,8 @@ When the operator says "remember this" (or similar), determine the correct datab
 5. **Log the routing decision** — after every save, insert a row into `routing_log` recording `destination_db`, `destination_table`, `record_slug`, `rationale` (why this destination), and `triggered_by` (who/what initiated it). This enables periodic audits.',
  'When operator says "remember this," route to the correct database based on context. One canonical location, no duplicates.',
  'system', TRUE,
- 'Operator says "remember this" or asks to save/store knowledge after completing work')
+ 'Operator says "remember this" or asks to save/store knowledge after completing work',
+ 1, ARRAY['remember'])
 
 ON CONFLICT DO NOTHING;
 
@@ -308,7 +311,7 @@ This does NOT mean changes are applied to the template immediately. It means the
 
 ON CONFLICT DO NOTHING;
 
-INSERT INTO standing_orders (slug, title, body, summary, scope, active, trigger_pattern) VALUES
+INSERT INTO standing_orders (slug, title, body, summary, scope, active, trigger_pattern, tier) VALUES
 ('standing-end-session-protocol', 'End Session Protocol',
  '# End Session Protocol
 
@@ -359,11 +362,12 @@ If deliverables were shipped, write a ship log to `memory_entries` with `entry_t
 7. **Role references, not character names** — in session notes and ship logs, reference team members by role or slug (e.g., "the researcher," "backend-dev"), not by their themed display name. This keeps records theme-agnostic and survives any future re-theme.',
  'When operator signals session end, run full close-out: update touched DB records, write session note, log ship entries.',
  'system', TRUE,
- 'Operator signals session end: "end session", "wrap up", "we''re done", or similar stop signals')
+ 'Operator signals session end: "end session", "wrap up", "we''re done", or similar stop signals',
+ 1)
 
 ON CONFLICT DO NOTHING;
 
-INSERT INTO standing_orders (slug, title, body, summary, scope, active, trigger_pattern, tags) VALUES
+INSERT INTO standing_orders (slug, title, body, summary, scope, active, trigger_pattern, tier, tags) VALUES
 ('standing-credential-security-gate', 'Credential Security Gate',
  '# Credential Security Gate
 
@@ -378,7 +382,7 @@ All work involving credentials — API keys, tokens, passwords, secrets, or auth
  'All credential and secret work must route through the security officer. No agent handles API keys, tokens, or passwords directly.',
  'system', TRUE,
  'API key, token, secret, credential, password, .env, .mcp.json, authentication setup, service integration requiring keys, bearer token, access token, client secret, private key, webhook secret, rotate key, auth config',
- ARRAY['security','credentials','core'])
+ 1, ARRAY['security','credentials','core'])
 
 ON CONFLICT DO NOTHING;
 

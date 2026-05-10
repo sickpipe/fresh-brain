@@ -1,4 +1,4 @@
--- Brain Database Schema (v13)
+-- Brain Database Schema (v14)
 -- Generated from live database: 2026-05-06
 -- Source of truth for fresh installs. Kept in sync with migrations.
 --
@@ -36,6 +36,10 @@
 -- v13 (012_topic_document_links.sql): topic_document_links join table
 -- for directional cross-references between topic_documents — enables
 -- the compounding wiki knowledge graph.
+--
+-- v14 (013_standing_orders_scaling.sql): tiered standing orders with
+-- audit log and signal tag support — tier column, manifest_summary,
+-- signal_tags array, standing_order_fires table, signal_tag_map config.
 
 -- Extensions
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
@@ -225,6 +229,9 @@ CREATE TABLE standing_orders (
     active           BOOLEAN NOT NULL DEFAULT true,
     trigger_pattern  TEXT,
     effective_from   DATE,
+    tier             INTEGER NOT NULL DEFAULT 2 CHECK (tier IN (1, 2)),
+    manifest_summary VARCHAR(200),
+    signal_tags      TEXT[],
     tags             TEXT[],
     embedding        vector(384),
     embedding_model  TEXT,
@@ -233,7 +240,8 @@ CREATE TABLE standing_orders (
     tsv              tsvector GENERATED ALWAYS AS (
                          to_tsvector('english',
                              coalesce(title, '') || ' ' ||
-                             coalesce(body, ''))
+                             coalesce(body, '') || ' ' ||
+                             coalesce(manifest_summary, ''))
                      ) STORED,
     edited_by        TEXT NOT NULL DEFAULT 'system' CHECK (edited_by IN ('system', 'operator')),
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -248,6 +256,25 @@ CREATE INDEX idx_standing_orders_slug_live ON standing_orders(slug) WHERE delete
 
 CREATE TRIGGER trg_standing_orders_updated_at
     BEFORE UPDATE ON standing_orders FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
+
+-- ============================================================
+-- standing_order_fires: append-only audit log (v14)
+-- ============================================================
+-- Tracks when, how, and in which session a standing order fired.
+-- Separates config from telemetry — no mutations on canonical rows.
+CREATE TABLE standing_order_fires (
+    id              BIGSERIAL PRIMARY KEY,
+    order_slug      TEXT NOT NULL REFERENCES standing_orders(slug),
+    fired_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+    match_method    TEXT NOT NULL CHECK (match_method IN (
+        'signal_tag', 'retrieval', 'manual_scan', 'direct'
+    )),
+    session_slug    TEXT,
+    trigger_context TEXT
+);
+
+CREATE INDEX idx_standing_order_fires_slug ON standing_order_fires(order_slug);
+CREATE INDEX idx_standing_order_fires_at ON standing_order_fires(fired_at DESC);
 
 -- ============================================================
 -- ideas

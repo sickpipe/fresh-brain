@@ -101,6 +101,9 @@ MEMORY_UPSERT_SCHEMA = {
         "trigger_pattern": {"type": "string", "description": "Trigger description (standing_orders)"},
         "active": {"type": "boolean", "description": "Active flag (standing_orders)"},
         "effective_from": {"type": "string", "format": "date", "description": "Effective date (standing_orders)"},
+        "tier": {"type": "integer", "enum": [1, 2], "description": "Standing order tier: 1 (always loaded) or 2 (manifest only)"},
+        "manifest_summary": {"type": "string", "description": "Compact one-line summary for Tier 2 manifest display (max 200 chars)"},
+        "signal_tags": {"type": "array", "items": {"type": "string"}, "description": "Operator signal tags that trigger this order (standing_orders)"},
         "priority": {"type": "integer", "description": "Sort priority (operator_intent)"},
         "category": {"type": "string", "description": "Idea category (ideas)"},
         "estimated_cost": {"type": "string", "description": "Cost estimate (ideas)"},
@@ -228,6 +231,9 @@ MEMORY_PATCH_SCHEMA = {
         "priority": {"type": "integer", "description": "Updated priority"},
         "always_inject": {"type": "boolean", "description": "Updated always_inject"},
         "capabilities": {"type": "array", "items": {"type": "string"}, "description": "Updated capabilities"},
+        "tier": {"type": "integer", "enum": [1, 2], "description": "Updated tier (standing_orders)"},
+        "manifest_summary": {"type": "string", "description": "Updated manifest summary (standing_orders)"},
+        "signal_tags": {"type": "array", "items": {"type": "string"}, "description": "Updated signal tags (standing_orders)"},
     },
     "required": ["source_table", "slug"],
 }
@@ -312,6 +318,17 @@ MEMORY_LIST_LINKS_SCHEMA = {
     "required": ["slug"],
 }
 
+MEMORY_LOG_ORDER_FIRE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "order_slug": {"type": "string", "description": "Slug of the standing order that fired"},
+        "match_method": {"type": "string", "enum": ["signal_tag", "retrieval", "manual_scan", "direct"], "description": "How the order was matched"},
+        "session_slug": {"type": "string", "description": "Current session slug (if available)"},
+        "trigger_context": {"type": "string", "description": "First 200 chars of the operator request that triggered it"},
+    },
+    "required": ["order_slug", "match_method"],
+}
+
 SCHEMAS = {
     "memory_search": MEMORY_SEARCH_SCHEMA,
     "memory_get": MEMORY_GET_SCHEMA,
@@ -326,4 +343,5 @@ SCHEMAS = {
     "memory_consolidate_notes": MEMORY_CONSOLIDATE_NOTES_SCHEMA,
     "memory_link_documents": MEMORY_LINK_DOCUMENTS_SCHEMA,
     "memory_list_links": MEMORY_LIST_LINKS_SCHEMA,
+    "memory_log_order_fire": MEMORY_LOG_ORDER_FIRE_SCHEMA,
 }

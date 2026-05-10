@@ -28,8 +28,10 @@ from sqlalchemy import (
     Integer,
     BigInteger,
     Text,
+    String,
     Boolean,
     CheckConstraint,
+    ForeignKey,
     Index,
     Date,
     ARRAY,
@@ -178,6 +180,15 @@ standing_orders = Table(
     ),
     Column("active", Boolean, nullable=False, server_default="TRUE"),
     Column("effective_from", Date),
+    Column(
+        "tier",
+        Integer,
+        CheckConstraint("tier IN (1, 2)", name="chk_standing_orders_tier"),
+        nullable=False,
+        server_default="2",
+    ),
+    Column("manifest_summary", String(200)),
+    Column("signal_tags", ARRAY(Text)),
     Column("tags", ARRAY(Text)),
     Column("embedding", Vector(EMBEDDING_DIM)),
     Column("embedding_model", Text),
@@ -188,6 +199,36 @@ standing_orders = Table(
 )
 
 Index("idx_standing_orders_active", standing_orders.c.active)
+
+# ============================================================================
+# standing_order_fires — append-only audit log for standing order activations
+# ============================================================================
+# Tracks when, how, and in which session a standing order fired.
+# Replaces fire_count/last_fired_at on the canonical row (separates
+# config from telemetry). Query this table for fire counts, last-fired
+# timestamps, and governance audits (unfired orders in 90 days).
+
+standing_order_fires = Table(
+    "standing_order_fires",
+    metadata,
+    Column("id", BigInteger, primary_key=True, autoincrement=True),
+    Column("order_slug", Text, ForeignKey("standing_orders.slug"), nullable=False),
+    Column("fired_at", TIMESTAMP(timezone=True), nullable=False, server_default="now()"),
+    Column(
+        "match_method",
+        Text,
+        CheckConstraint(
+            "match_method IN ('signal_tag','retrieval','manual_scan','direct')",
+            name="chk_standing_order_fires_match_method",
+        ),
+        nullable=False,
+    ),
+    Column("session_slug", Text),
+    Column("trigger_context", Text),
+)
+
+Index("idx_standing_order_fires_slug", standing_order_fires.c.order_slug)
+Index("idx_standing_order_fires_at", standing_order_fires.c.fired_at.desc())
 
 # ============================================================================
 # ideas — deferred-but-not-dead backlog (current ideas.md)

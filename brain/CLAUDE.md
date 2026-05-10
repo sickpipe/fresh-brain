@@ -9,7 +9,7 @@ At every session start, run these queries before responding:
 3. `memory_list_recent(source_table='standing_orders', summary_only=true)` — active triggers
 4. `memory_list_recent(source_table='operator_intent', summary_only=true)` — load always-inject values and decision boundaries
 
-**Shortcut:** If `load_core` tool is available, call it once instead of steps 1-4. It returns config, roster, standing orders, and operator intent in one response.
+**Shortcut:** If `load_core` tool is available, call it once instead of steps 1-4. It returns config, roster, tiered standing orders (tier1_orders + tier2_manifest), signal_tag_map, and operator intent in one response.
 
 Your name, persona, and catchphrase come from `brain_config` keys: `orchestrator_name`, `orchestrator_persona`, `orchestrator_catchphrase`. The operator's title comes from `operator_title`. **Never hardcode names or personas — always read from the brain.**
 
@@ -216,14 +216,18 @@ memory_list_capabilities(capabilities=['python', 'database'])
 
 Slugs are the team member identifiers. Fetch full profiles with `memory_get`.
 
-## Standing Orders
+## Standing Orders (Tiered)
 
-**Dynamic — never hardcode.** Fetch at session start:
-```
-memory_list_recent(source_table='standing_orders', summary_only=true)
-```
+**Dynamic — never hardcode.** Standing orders use a two-tier system:
 
-Match the `trigger_pattern` field against the operator's request. When a trigger fires, fetch the full order via `memory_get(source_table='standing_orders', slug='<slug>')` before acting.
+- **Tier 1 (core):** Returned by `load_core()` as `tier1_orders` with full body. Always in context — no fetch needed.
+- **Tier 2 (situational):** Returned by `load_core()` as `tier2_manifest` — compact one-liners (slug + summary + signal_tags). When triggered, fetch full body via `memory_get(source_table='standing_orders', slug='<slug>')`.
+
+**Matching hierarchy:** Operator signal tag (guaranteed match) > retrieval search > manual scan ("check the orders") > no match.
+
+The `signal_tag_map` (also in `load_core()` response) maps operator prefixes (e.g., `remember:`) to standing order slugs. When an operator message starts with a known signal tag, the corresponding order fires immediately without search.
+
+After any order fires, log it via `memory_log_order_fire(order_slug, match_method)`.
 
 ## Brain Access
 
@@ -240,8 +244,9 @@ The brain is a Postgres + pgvector MCP server. It is the single source of truth 
 | `memory_history(source_table, source_slug, limit?, summary_only?)` | Read edit history for a row |
 | `memory_rollback(source_table, slug, history_id)` | Restore a previous version |
 | `memory_list_capabilities(capabilities)` | Find team members by skill tags (AND logic) |
-| `load_core()` | Single bootstrap call — returns config, roster, standing orders, operator intent |
+| `load_core()` | Single bootstrap call — returns config, roster, tier1_orders, tier2_manifest, signal_tag_map, operator intent |
 | `patch(source_table, slug, **fields)` | Partial update — modifies only provided fields without replacing the whole row |
+| `memory_log_order_fire(order_slug, match_method, session_slug?, trigger_context?)` | Record a standing order fire in the audit log |
 
 ### Tables
 
@@ -252,7 +257,8 @@ The brain is a Postgres + pgvector MCP server. It is the single source of truth 
 | `topic_documents` | Reference docs, ops guides, project context |
 | `memory_entries` | Facts, preferences, ship logs, lessons learned |
 | `session_notes` | End-of-session summaries (append-only) |
-| `standing_orders` | Automated behaviors triggered by patterns |
+| `standing_orders` | Automated behaviors triggered by patterns (tiered: tier 1 = always loaded, tier 2 = manifest only) |
+| `standing_order_fires` | Audit log of when standing orders fired (append-only) |
 | `ideas` | Ideas pipeline: proposed → approved → built → shipped |
 | `operator_intent` | Operator values, identity, decision boundaries |
 

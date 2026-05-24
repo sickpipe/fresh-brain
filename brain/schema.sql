@@ -1,5 +1,5 @@
--- Brain Database Schema (v14)
--- Generated from live database: 2026-05-06
+-- Brain Database Schema (v15)
+-- Generated from live database: 2026-05-24
 -- Source of truth for fresh installs. Kept in sync with migrations.
 --
 -- SEARCH: Brain uses pgvector semantic search (all-MiniLM-L6-v2, 384-dim)
@@ -40,6 +40,10 @@
 -- v14 (013_standing_orders_scaling.sql): tiered standing orders with
 -- audit log and signal tag support — tier column, manifest_summary,
 -- signal_tags array, standing_order_fires table, signal_tag_map config.
+
+-- v15 (014_external_document_links.sql): external_document_links table
+-- for linking Google Drive, Dropbox, local, and URL documents to records
+-- across all three databases (brain, personal, evenrail_app).
 
 -- Extensions
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
@@ -474,6 +478,47 @@ CREATE INDEX idx_topic_document_links_type ON topic_document_links(link_type) WH
 
 CREATE TRIGGER trg_topic_document_links_updated_at
     BEFORE UPDATE ON topic_document_links FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
+
+-- ============================================================
+-- external_document_links: cross-database file attachments (v15)
+-- ============================================================
+-- Links external files (Google Drive, Dropbox, local, URL) to records
+-- in any of the three databases. target_db + target_table + target_key
+-- form the polymorphic foreign reference.
+CREATE TABLE external_document_links (
+    id            BIGSERIAL PRIMARY KEY,
+    target_db     TEXT NOT NULL CHECK (target_db IN ('brain', 'personal', 'evenrail_app')),
+    target_table  TEXT NOT NULL,
+    target_key    TEXT NOT NULL,
+    provider      TEXT NOT NULL CHECK (provider IN ('google_drive', 'dropbox', 'local', 'url')),
+    provider_ref  TEXT NOT NULL,
+    url           TEXT,
+    title         TEXT NOT NULL,
+    doc_type      TEXT,
+    mime_type     TEXT,
+    provider_meta JSONB NOT NULL DEFAULT '{}',
+    status        TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived', 'broken')),
+    last_verified TIMESTAMPTZ,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at    TIMESTAMPTZ
+);
+
+CREATE INDEX idx_external_document_links_target
+    ON external_document_links (target_db, target_table, target_key)
+    WHERE deleted_at IS NULL;
+CREATE INDEX idx_external_document_links_provider_ref
+    ON external_document_links (provider, provider_ref);
+CREATE UNIQUE INDEX uq_external_document_links_dedup
+    ON external_document_links (provider, provider_ref, target_db, target_table, target_key)
+    WHERE deleted_at IS NULL;
+CREATE INDEX idx_external_document_links_status
+    ON external_document_links (status) WHERE deleted_at IS NULL;
+CREATE INDEX idx_external_document_links_live
+    ON external_document_links (id) WHERE deleted_at IS NULL;
+
+CREATE TRIGGER trg_external_document_links_updated_at
+    BEFORE UPDATE ON external_document_links FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
 
 -- ============================================================
 -- applied_migrations: per-filename migration ledger (v7)

@@ -337,6 +337,101 @@ MEMORY_LOG_ORDER_FIRE_SCHEMA = {
     "required": ["order_slug", "match_method"],
 }
 
+MEMORY_LINK_EXTERNAL_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "target_db": {
+            "type": "string",
+            "enum": ["brain", "personal", "evenrail_app"],
+            "description": "Database the linked record lives in: brain, personal, or evenrail_app",
+        },
+        "target_table": {
+            "type": "string",
+            "description": "Table the linked record lives in (e.g. 'projects', 'topic_documents')",
+        },
+        "target_key": {
+            "type": "string",
+            "description": "Primary key or slug of the linked record",
+        },
+        "provider": {
+            "type": "string",
+            "enum": ["google_drive", "dropbox", "local", "url"],
+            "description": "Document provider: google_drive, dropbox, local, url",
+        },
+        "provider_ref": {
+            "type": "string",
+            "description": "Immutable file ID from the provider (e.g. Google Drive file ID)",
+        },
+        "title": {
+            "type": "string",
+            "description": "Human-readable document title",
+        },
+        "url": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2048,
+            "description": "Last known clickable URL for the document (http:// or https:// only)",
+        },
+        "doc_type": {
+            "type": "string",
+            "description": "Document category: contract, invoice, proposal, spec, etc.",
+        },
+        "mime_type": {
+            "type": "string",
+            "description": "MIME type (e.g. application/pdf, text/markdown)",
+        },
+        "provider_meta": {
+            "type": "object",
+            "description": "Provider-specific metadata as JSON (e.g. Drive folder ID, version)",
+        },
+        "status": {
+            "type": "string",
+            "enum": ["active", "archived", "broken"],
+            "description": "Link status (default: active)",
+        },
+    },
+    "required": ["target_db", "target_table", "target_key", "provider", "provider_ref", "title"],
+}
+
+MEMORY_LIST_EXTERNAL_LINKS_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "target_db": {
+            "type": "string",
+            "enum": ["brain", "personal", "evenrail_app"],
+            "description": "Filter by database name: brain, personal, or evenrail_app",
+        },
+        "target_table": {
+            "type": "string",
+            "description": "Filter by table name",
+        },
+        "target_key": {
+            "type": "string",
+            "description": "Filter by record key/slug",
+        },
+        "provider": {
+            "type": "string",
+            "enum": ["google_drive", "dropbox", "local", "url"],
+            "description": "Filter by provider",
+        },
+        "doc_type": {
+            "type": "string",
+            "description": "Filter by document type",
+        },
+        "status": {
+            "type": "string",
+            "enum": ["active", "archived", "broken"],
+            "description": "Filter by status (default: excludes soft-deleted only)",
+        },
+        "limit": {
+            "type": "integer",
+            "default": 50,
+            "description": "Max results to return (max 200)",
+        },
+    },
+    "required": [],
+}
+
 SCHEMAS = {
     "memory_search": MEMORY_SEARCH_SCHEMA,
     "memory_get": MEMORY_GET_SCHEMA,
@@ -352,4 +447,6 @@ SCHEMAS = {
     "memory_link_documents": MEMORY_LINK_DOCUMENTS_SCHEMA,
     "memory_list_links": MEMORY_LIST_LINKS_SCHEMA,
     "memory_log_order_fire": MEMORY_LOG_ORDER_FIRE_SCHEMA,
+    "memory_link_external": MEMORY_LINK_EXTERNAL_SCHEMA,
+    "memory_list_external_links": MEMORY_LIST_EXTERNAL_LINKS_SCHEMA,
 }

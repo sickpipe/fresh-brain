@@ -1,4 +1,4 @@
-"""brain/mcp_server.py — Flask MCP server for brain v2 (14 tools)."""
+"""brain/mcp_server.py — Flask MCP server for brain v2 (16 tools)."""
 
 import json
 import logging
@@ -26,6 +26,8 @@ from mcp_tools import link_documents as tool_link_documents
 from mcp_tools import list_links as tool_list_links
 from mcp_tools import log_order_fire as tool_log_order_fire
 from mcp_tools_archivist import consolidate_notes as tool_consolidate_notes
+from mcp_tools_external import link_external as tool_link_external
+from mcp_tools_external import list_external_links as tool_list_external_links
 from mcp_tools_observability import log_tool_call as _log_tool_call
 from mcp_tools_observability import query_tool_log as tool_query_tool_log
 from rate_limit import MCP_LIMIT, init_rate_limiting, limiter
@@ -84,17 +86,20 @@ TOOLS = {
     "memory_link_documents": {"fn": tool_link_documents, "description": "Create a directional link between two topic documents."},
     "memory_list_links": {"fn": tool_list_links, "description": "List all cross-links for a topic document."},
     "memory_log_order_fire": {"fn": tool_log_order_fire, "description": "Record a standing order fire in the audit log."},
+    "memory_link_external": {"fn": tool_link_external, "description": "Create or update an external document link (upserts on provider+ref+target)."},
+    "memory_list_external_links": {"fn": tool_list_external_links, "description": "List external document links with optional filters."},
 }
 
 
 CACHEABLE_TOOLS = {
     "memory_load_core", "memory_get", "memory_list_recent",
     "memory_list_capabilities", "memory_search", "memory_list_links",
+    "memory_list_external_links",
 }
 WRITE_TOOLS = {
     "memory_upsert", "memory_patch", "memory_rollback",
     "memory_consolidate_notes", "memory_link_documents",
-    "memory_log_order_fire",
+    "memory_log_order_fire", "memory_link_external",
 }
 
 

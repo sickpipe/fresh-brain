@@ -17,6 +17,14 @@ MEMORY_SEARCH_SCHEMA = {
                 "Omit to search all."
             ),
         },
+        "entry_type": {
+            "type": "string",
+            "description": (
+                "Optional filter for memory_entries.entry_type. "
+                "Only applies when source_tables includes 'memory_entries'. "
+                "Common values: agent_feedback, ship_log, lesson_learned, user_pref."
+            ),
+        },
         "limit": {
             "type": "integer",
             "default": 10,

@@ -40,23 +40,28 @@ def _not_deleted(table: str) -> str:
     return "AND deleted_at IS NULL"
 
 
-def _vector_pass(cur, tables, qvec_lit, limit, summary_only):
+def _vector_pass(cur, tables, qvec_lit, limit, summary_only, entry_type=None):
     """Pass 1+2: main embedding + chunk probe. Returns {(table, slug): (row_dict, rank)}."""
     hits = {}
     rank = 0
     # Pass 1: main embedding per content table
     for t in tables:
+        et_clause = ""
+        et_params = []
+        if t == "memory_entries" and entry_type:
+            et_clause = "AND entry_type = %s"
+            et_params = [entry_type]
         cur.execute(
             f"""
             SELECT '{t}' AS source_table, slug,
                    (embedding <=> %s::vector) AS distance,
                    {_cols(t, summary_only)}
             FROM {t}
-            WHERE embedding IS NOT NULL {_not_deleted(t)}
+            WHERE embedding IS NOT NULL {_not_deleted(t)} {et_clause}
             ORDER BY embedding <=> %s::vector
             LIMIT %s
             """,
-            (qvec_lit, qvec_lit, limit),
+            (qvec_lit, *et_params, qvec_lit, limit),
         )
         for row in cur.fetchall():
             key = (t, row["slug"])
@@ -91,10 +96,15 @@ def _vector_pass(cur, tables, qvec_lit, limit, summary_only):
         if prev is not None and prev[0]["distance"] <= ch_dist:
             continue
         nd = _not_deleted(t)
+        et_clause = ""
+        et_params = []
+        if t == "memory_entries" and entry_type:
+            et_clause = "AND entry_type = %s"
+            et_params = [entry_type]
         cur.execute(
             f"SELECT '{t}' AS source_table, slug, {_cols(t, summary_only)} "
-            f"FROM {t} WHERE slug = %s {nd}",
-            (slug,),
+            f"FROM {t} WHERE slug = %s {nd} {et_clause}",
+            (slug, *et_params),
         )
         parent = cur.fetchone()
         if not parent:
@@ -106,21 +116,26 @@ def _vector_pass(cur, tables, qvec_lit, limit, summary_only):
     return hits
 
 
-def _text_pass(cur, tables, query, limit):
+def _text_pass(cur, tables, query, limit, entry_type=None):
     """Full-text search using tsv tsvector column. Returns {(table, slug): rank}."""
     hits = {}
     rank = 0
     for t in tables:
         nd = _not_deleted(t)
+        et_clause = ""
+        et_params = []
+        if t == "memory_entries" and entry_type:
+            et_clause = "AND entry_type = %s"
+            et_params = [entry_type]
         try:
             cur.execute(
                 f"""
                 SELECT slug, ts_rank(tsv, plainto_tsquery('english', %s)) AS rank
                 FROM {t}
-                WHERE tsv @@ plainto_tsquery('english', %s) {nd}
+                WHERE tsv @@ plainto_tsquery('english', %s) {nd} {et_clause}
                 ORDER BY rank DESC LIMIT %s
                 """,
-                (query, query, limit),
+                (query, query, *et_params, limit),
             )
         except Exception:
             logger.debug("text search skipped for %s (tsv column may not exist)", t)
@@ -168,7 +183,7 @@ def _vector_only_results(vector_hits, limit, distance_threshold):
 
 def search(
     conn, query, source_tables=None, limit=10, summary_only=False,
-    mode="hybrid", distance_threshold=0.7,
+    mode="hybrid", distance_threshold=0.7, entry_type=None,
 ):
     """Hybrid or vector-only semantic search."""
     if not query or not query.strip():
@@ -186,13 +201,15 @@ def search(
     qvec_lit = "[" + ",".join(repr(float(x)) for x in qvec) + "]"
 
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
-        vector_hits = _vector_pass(cur, tables, qvec_lit, limit, summary_only)
+        vector_hits = _vector_pass(
+            cur, tables, qvec_lit, limit, summary_only, entry_type,
+        )
 
     if mode == "vector_only":
         results = _vector_only_results(vector_hits, limit, distance_threshold)
     else:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            text_hits = _text_pass(cur, tables, query, limit)
+            text_hits = _text_pass(cur, tables, query, limit, entry_type)
         merged = _rrf_merge(vector_hits, text_hits, limit)
         results = []
         for score, key, row_data in merged:

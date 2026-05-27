@@ -146,23 +146,27 @@ def list_capabilities(conn, capabilities: list[str]) -> dict:
 
 
 # ---------------------------------------------------------------- load_core
-def load_core(conn) -> dict:
-    """Single bootstrap call — returns config, active team roster, tiered standing orders, signal tag map, and always-inject operator intent."""
+def load_core(conn, summary_only: bool = False) -> dict:
+    """Single bootstrap call — returns config, active team roster, tiered standing orders, signal tag map, and always-inject operator intent.
+
+    When summary_only=True, team_members and tier1_orders are returned in their
+    lightweight projection (no persona, body, or project_context). Default False
+    preserves full bodies for tier1 orders and full persona/body/project_context
+    for team_members.
+    """
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         cur.execute("SELECT key, value, description FROM brain_config ORDER BY key")
         config = [_row_to_json(dict(r)) for r in cur.fetchall()]
 
-        summary_cols = ", ".join(SUMMARY_COLUMNS["team_members"])
         cur.execute(
-            f"SELECT {summary_cols} FROM team_members "
+            f"SELECT {_cols('team_members', summary_only)} FROM team_members "
             "WHERE status = 'active' AND deleted_at IS NULL ORDER BY display_name"
         )
         team = [_row_to_json(dict(r)) for r in cur.fetchall()]
 
-        # Tier 1: full body for always-loaded orders
-        tier1_cols = ", ".join(TABLE_COLUMNS["standing_orders"])
+        # Tier 1: full body when summary_only=False; lightweight projection otherwise
         cur.execute(
-            f"SELECT {tier1_cols} FROM standing_orders "
+            f"SELECT {_cols('standing_orders', summary_only)} FROM standing_orders "
             "WHERE tier = 1 AND active = true AND deleted_at IS NULL "
             "ORDER BY updated_at DESC"
         )

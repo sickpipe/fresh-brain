@@ -222,11 +222,12 @@ MEMORY_LOAD_CORE_SCHEMA = {
     "properties": {
         "summary_only": {
             "type": "boolean",
-            "default": False,
+            "default": True,
             "description": (
-                "If true, omit heavyweight body/persona/project_context fields "
-                "from team_members and standing_orders. Use for bootstrap; "
-                "fetch full rows on-demand via memory_get."
+                "Default true: omit heavyweight body/persona/project_context "
+                "fields from team_members and standing_orders for a lightweight "
+                "bootstrap payload. Fetch full rows on-demand via memory_get. "
+                "Pass false to force full payload (legacy behavior)."
             ),
         },
     },

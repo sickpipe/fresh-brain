@@ -79,7 +79,7 @@ TOOLS = {
     "memory_history": {"fn": tool_history, "description": "Read document_history entries for a specific slug."},
     "memory_rollback": {"fn": tool_rollback, "description": "Restore a previous version from document_history (reversible)."},
     "memory_list_capabilities": {"fn": tool_list_capabilities, "description": "Find team members by capabilities (AND logic)."},
-    "memory_load_core": {"fn": tool_load_core, "description": "Bootstrap — returns config, roster, standing orders, operator intent. Pass summary_only=true to omit body/persona/project_context from team_members and tier1_orders."},
+    "memory_load_core": {"fn": tool_load_core, "description": "Bootstrap — returns config, roster, standing orders, operator intent. Default summary_only=true returns the lightweight projection (no persona/body/project_context on team_members and tier1_orders); pass summary_only=false for the legacy full payload."},
     "memory_patch": {"fn": tool_patch, "description": "Partial update — modifies only provided fields. Records history."},
     "memory_query_tool_log": {"fn": tool_query_tool_log, "description": "Query MCP tool call history for observability."},
     "memory_consolidate_notes": {"fn": tool_consolidate_notes, "description": "Archive old session notes into digest topic documents."},

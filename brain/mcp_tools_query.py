@@ -146,13 +146,14 @@ def list_capabilities(conn, capabilities: list[str]) -> dict:
 
 
 # ---------------------------------------------------------------- load_core
-def load_core(conn, summary_only: bool = False) -> dict:
+def load_core(conn, summary_only: bool = True) -> dict:
     """Single bootstrap call — returns config, active team roster, tiered standing orders, signal tag map, and always-inject operator intent.
 
-    When summary_only=True, team_members and tier1_orders are returned in their
-    lightweight projection (no persona, body, or project_context). Default False
-    preserves full bodies for tier1 orders and full persona/body/project_context
-    for team_members.
+    Default summary_only=True returns team_members and tier1_orders in their
+    lightweight projection (no persona, body, or project_context) — canonical
+    bootstrap shape after the 2026-05 default flip. Pass summary_only=False to
+    force the legacy full payload with persona/body/project_context inlined.
+    Fetch full rows on-demand via memory_get when needed.
     """
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         cur.execute("SELECT key, value, description FROM brain_config ORDER BY key")

@@ -115,8 +115,11 @@ for FILE in "${SORTED_FILES[@]}"; do
 
     # Record the apply. Done in a separate transaction; if this fails the
     # operator must INSERT manually and re-run.
+    # Migration bodies may self-insert their own filename, so the row can
+    # already exist with a NULL/placeholder checksum. UPDATE the checksum on
+    # conflict so we always record the hash of what we actually ran.
     psql -d "$DB" -v ON_ERROR_STOP=1 -qc \
-        "INSERT INTO applied_migrations (filename, checksum) VALUES ('$BASENAME', '$CHECKSUM') ON CONFLICT (filename) DO NOTHING"
+        "INSERT INTO applied_migrations (filename, checksum) VALUES ('$BASENAME', '$CHECKSUM') ON CONFLICT (filename) DO UPDATE SET checksum = EXCLUDED.checksum"
 
     echo "  -> OK"
     APPLIED_COUNT=$((APPLIED_COUNT + 1))

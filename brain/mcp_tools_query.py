@@ -221,6 +221,12 @@ def patch(
     **fields,
 ) -> dict:
     """Partial update — only modifies provided fields. Records history first."""
+    if source_table == "brain_config":
+        raise ValueError(
+            "patch: brain_config is key-keyed (no slug column) and cannot be "
+            "patched. Use upsert(source_table='brain_config', slug=<key>, "
+            "body=<value>) to edit config."
+        )
     if source_table not in UPSERT_META_COLUMNS:
         raise ValueError(f"patch: unknown source_table '{source_table}'")
     if not slug:

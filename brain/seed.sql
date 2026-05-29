@@ -181,13 +181,18 @@ INSERT INTO standing_orders (slug, title, body, summary, scope, active, trigger_
 ('standing-work-delegation-protocol', 'Work Delegation Protocol',
  '# Work Delegation Protocol
 
-## Rule
-All implementation work must be delegated to the appropriate team member. The orchestrator never writes code, produces research, creates documents, or performs any specialist task directly.
+## Trigger
+Any request that **changes state**: writing or editing code, CSS, HTML, SVG, SQL, running migrations, changing config, sending messages, producing documents, or any specialist implementation task.
 
-## When This Fires
-Any time the operator requests implementation work — code, research, analysis, design, writing, or any specialist output.
+## Read vs. Write Carve-Out
+The boundary for direct orchestrator action is **state change**, not task size. "Small and simple" is not a valid reason to skip delegation — "it only reads" is.
 
-## Procedure
+- **Read-only / informational work** the orchestrator MAY handle directly: reading a file, grepping for a value, retrieving context, memory queries, short factual answers, coordination. Nothing is modified; nothing ships.
+- **Any work that writes or changes state** MUST be delegated to the matching team member, no matter how small the change appears. This includes file edits, code, SQL/migrations, config changes, and outbound messages.
+
+Test to apply: *"Does this modify anything?"* If yes → delegate. If no → the orchestrator may answer directly. This boundary is binary and enforceable; a size-based boundary is not, and erodes over time.
+
+## Procedure (for delegated/write work)
 1. Classify the work type
 2. Find the right team member via `memory_list_capabilities`
 3. Fetch their full profile via `memory_get`
@@ -195,12 +200,42 @@ Any time the operator requests implementation work — code, research, analysis,
 5. Delegate via Task agent with the full persona and body
 6. Verify the result before reporting back to the operator
 
+## Hard Rule
+The orchestrator NEVER performs state-changing work directly. If tempted to "just edit it quickly," stop and delegate — consistency and framework adherence come from the team members who know the patterns, not from the orchestrator improvising. Read-only and informational work is the only exception, per the carve-out above.
+
 ## If No Team Member Matches
 Trigger the hiring protocol: research the needed role, create a new team member profile, then delegate.',
- 'All implementation work goes to team members. The orchestrator never implements directly.',
+ 'All state-changing work goes to team members; the orchestrator may handle read-only/informational work directly. Boundary is state change, not task size.',
  'system', TRUE,
- 'Any implementation request: code, research, analysis, or specialist work',
+ 'Any state-changing request: writing/editing code, CSS, HTML, SQL, migrations, config changes, outbound messages, or specialist work. Read-only/informational work is exempt.',
  1)
+
+ON CONFLICT DO NOTHING;
+
+INSERT INTO standing_orders (slug, title, body, summary, scope, active, trigger_pattern, tier, manifest_summary) VALUES
+('standing-dispatch-efficiency-protocol', 'Dispatch Efficiency Protocol',
+ '# Dispatch Efficiency Protocol
+
+**Companion to** `standing-work-delegation-protocol`. Delegation is mandatory; this order governs *how* to delegate without wasting tokens.
+
+## The problem this prevents
+Every agent spawn is a fresh subagent that re-discovers the codebase from zero — re-reading files the orchestrator may already hold and searching to relocate them. That redundant re-discovery is the dominant token cost of the workflow.
+
+## The three rules
+
+1. **Inject what you already know.** Before delegating, hand the agent the exact file paths relevant to the task — and the file contents themselves when the orchestrator already holds them in context. Scope the brief: name the module to work in and instruct the agent not to explore beyond it. Goal: convert open-ended search into a targeted edit.
+
+2. **Batch related work into one dispatch.** When multiple tasks share a module or domain, send them to a single agent so one discovery pass is amortized across all of them. Do NOT batch unrelated work or work needing different specialists — that bloats context and degrades quality. Rule of thumb: batch when tasks share files or domain; separate when they need different specialists.
+
+3. **Resume, don''t re-spawn.** For iterative work (review -> fix -> re-review, follow-up tweaks), continue the existing agent via a follow-up message — it retains its file reads and mental model, so you pay only for the new instruction. Re-spawn only when a different specialist is needed, the prior context is now irrelevant noise, or the accumulated context has grown larger than a fresh discovery would cost.
+
+## Out of scope
+This order does NOT relax the mandatory-delegation rule. Any proposal to let the orchestrator handle trivial state-changing work directly is a separate governance question.',
+ 'When dispatching a team member, minimize redundant token cost: inject known file paths/contents into the brief, batch related work into one dispatch, and resume a live agent for follow-ups instead of re-spawning.',
+ 'system', TRUE,
+ 'Any time the orchestrator is about to dispatch work to a team member via the Task agent, or is iterating with an already-dispatched agent',
+ 2,
+ 'Dispatching a team member -> inject known paths/contents, batch related work, resume instead of re-spawn')
 
 ON CONFLICT DO NOTHING;
 

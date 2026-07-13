@@ -8,17 +8,18 @@ Sets up a **brain** database (AI memory, team members, standing orders) and a **
 
 - **Brain MCP Server** -- Postgres + pgvector memory server with hybrid search (semantic + full-text), version history, and team member profiles
 - **Personal MCP Server** -- Task/mission tracker with full-text search, workspaces, and document history
+- **Opt-in Orchestrator** -- Plain Claude Code by default; summon the full orchestrator (memory bootstrap, standing orders, specialist delegation) on demand with `/brain`, and close out with `/end-session`. Both skills are operator-only — the model can't fire them on its own
 - **4 Starter Team Members** -- Orchestrator, Developer, Researcher, and HR Director ready to go
 - **Starter Packs** -- Optional add-ons offered during first-run setup: Business (CRM/ERP), additional team members (health, finance, creative, ops), and standing orders
 - **Re-Themeable** -- Choose a theme during setup (Star Trek, The Office, Lord of the Rings, anything) or switch anytime by telling the orchestrator to "apply theme: [name]." Character mappings are generated on the fly — no pre-built manifests needed
 
 ## How It Works
 
-The orchestrator uses a three-tier memory retrieval system:
+By default every session is plain Claude Code. Typing `/brain` summons the orchestrator, which uses a three-tier memory retrieval system:
 
-- **Core** — At session start, the orchestrator calls `load_core` to load its identity, team roster, standing orders, and operator intent in a single call. Always in context, zero search cost.
+- **Core** — On summoning, the orchestrator calls `load_core` to load its identity, team roster, standing orders, and operator intent in a single call. Always in context, zero search cost.
 - **On-Demand** — During conversation, the orchestrator searches the brain when you mention a project, person, or system. Search combines semantic similarity (pgvector) with full-text matching (tsvector) using reciprocal rank fusion for accurate retrieval of both conceptual and exact-match queries.
-- **Background** — At session end, the orchestrator records what happened (ship logs, session notes) so future sessions pick up where you left off.
+- **Background** — When you type `/end-session`, the orchestrator records what happened (ship logs, session notes) so future sessions pick up where you left off.
 
 All retrieval is agent-driven — the orchestrator decides when to search based on conversation context. No hooks, no latency penalty on every prompt.
 
@@ -39,8 +40,9 @@ cd fresh-brain
 5. Generate `brain/.env` and `personal/.env` with random bearer tokens
 6. Launch the brain (port 5050) and personal (port 5051) MCP daemons via `scripts/start-mcp.sh`, polling `/health` until both come up
 7. Register both servers with Claude Code at user scope via `claude mcp add --transport http`
+8. Install the `/brain` and `/end-session` skills into `~/.claude/skills/` (prompting before overwriting any existing skill of the same name)
 
-When the script finishes, restart Claude Code (Cmd+Q then reopen). The orchestrator will detect a fresh brain and walk you through onboarding.
+When the script finishes, restart Claude Code (Cmd+Q then reopen) and type `/brain` — the orchestrator will detect a fresh brain and walk you through onboarding. Between summons, Claude Code stays in its plain default mode.
 
 ## Brain Tools
 
@@ -96,6 +98,9 @@ brew install python@3.12
 fresh-brain/
   brain/             # AI memory MCP server (hybrid semantic + full-text search)
   personal/          # Mission/task MCP server (full-text search)
+  skills/
+    brain/           # /brain skill — summons the full orchestrator (installed to ~/.claude/skills/)
+    end-session/     # /end-session skill — session close-out protocol
   scripts/
     migrate.sh       # Apply pending DB migrations
     start-mcp.sh     # Idempotent daemon launcher (used by setup, also standalone)
@@ -121,7 +126,7 @@ Results are merged using reciprocal rank fusion (RRF), so exact matches on proje
 
 ## Onboarding
 
-See [brain/CLAUDE.md](brain/CLAUDE.md) for the full orchestrator bootstrap flow, delegation framework, and team management protocol.
+See [brain/CLAUDE.md](brain/CLAUDE.md) for the opt-in working model, and [skills/brain/SKILL.md](skills/brain/SKILL.md) for the full orchestrator bootstrap flow, delegation framework, and team management protocol (first-run onboarding happens the first time you type `/brain`). Session close-out lives in [skills/end-session/SKILL.md](skills/end-session/SKILL.md).
 
 ## Troubleshooting
 

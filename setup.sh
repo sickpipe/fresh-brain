@@ -42,9 +42,9 @@ echo ""
 # ── 1. Interactive questions ──────────────────────────────────
 
 read -rp "What's your name? (e.g., Alex): " USER_NAME
-read -rp "What's your title/role? (e.g., Captain): " USER_TITLE
+read -rp "What's your title/role? (e.g., Founder): " USER_TITLE
 read -rp "What's your timezone? (e.g., America/New_York): " USER_TZ
-read -rp "What should the AI call you? (e.g., Captain): " AI_ADDRESS
+read -rp "What should the AI call you? (e.g., Boss): " AI_ADDRESS
 
 echo ""
 read -rp "What would you like to call your personal dashboard? (default: Personal): " PERSONAL_DB_NAME
@@ -421,7 +421,7 @@ echo ""
 
 # ── 9. Register with Claude Code ────────────────────────────
 # Use `claude mcp add` so the operator doesn't have to hand-edit
-# ~/.claude.json. Captain approved user scope (roaming, available in
+# ~/.claude.json. User scope is deliberate (roaming, available in
 # every working directory).
 #
 # Set FRESH_BRAIN_SKIP_MCP_REGISTER=1 to bypass this section — useful
@@ -460,27 +460,68 @@ fi
 
 echo ""
 
-# ── 10. Generate root CLAUDE.md ──────────────────────────────
-# This is the bridge between "Claude Code launched" and "the orchestrator
-# is fully online." Without it, the AI starts as a generic assistant.
+# ── 10. Install operator skills ──────────────────────────────
+# The orchestrator is opt-in: it runs only when the operator summons it
+# via /brain (and closes out via /end-session). Both skills live in this
+# repo under skills/ and are copied into ~/.claude/skills/ so Claude Code
+# can offer them in any working directory. Prompt before clobbering an
+# existing skill of the same name.
 
-info "Generating root CLAUDE.md (session bootstrap)..."
+SKILLS_SRC="$SCRIPT_DIR/skills"
+SKILLS_DEST="$HOME/.claude/skills"
+
+install_skill() {
+    # install_skill <name>
+    local name="$1"
+    local src="$SKILLS_SRC/$name"
+    local dest="$SKILLS_DEST/$name"
+    if [ ! -d "$src" ]; then
+        warn "Skill source not found: $src — skipping"
+        return 0
+    fi
+    if [ -d "$dest" ]; then
+        read -rp "  Skill '$name' already exists at $dest. Overwrite? (y/N): " ans
+        ans_lc=$(printf '%s' "$ans" | tr '[:upper:]' '[:lower:]')
+        if [ "$ans_lc" != "y" ] && [ "$ans_lc" != "yes" ]; then
+            warn "Keeping existing skill '$name'"
+            return 0
+        fi
+        rm -rf "$dest"
+    fi
+    mkdir -p "$SKILLS_DEST"
+    cp -R "$src" "$dest"
+    ok "Installed skill '$name' -> $dest"
+}
+
+info "Installing operator skills (/brain, /end-session)..."
+install_skill "brain"
+install_skill "end-session"
+
+echo ""
+
+# ── 11. Generate root CLAUDE.md ──────────────────────────────
+# Sets the session default: plain Claude Code, orchestrator opt-in via
+# the /brain skill installed above.
+
+info "Generating root CLAUDE.md (session defaults)..."
 cat > "$SCRIPT_DIR/CLAUDE.md" <<'CLAUDEMD'
-# Fresh Brain — Session Bootstrap
+# Fresh Brain — Session Defaults
 
-At the start of every session, before responding to the user:
+Default to **plain Claude Code**. Do read-only and simple work directly.
 
-1. Ensure MCP servers are running: `./scripts/start-mcp.sh`
-2. Call `load_core()` to load identity, team roster, standing orders, and operator intent
-3. Follow the full orchestrator protocol in `brain/CLAUDE.md`
+The full orchestrator — DB-backed memory bootstrap, standing orders, specialist delegation, database-first logging — is **opt-in**. It runs only when the operator types `/brain`; session close-out runs via `/end-session`. Until summoned, don't run `load_core`, fire standing orders, or auto-dispatch to specialists.
 
-If `load_core` is not available as a tool after starting the servers, tell the user to restart Claude Code so the MCP tools can be discovered.
+The brain and personal MCP tools may be used for direct read-only lookups when the operator asks a specific question.
+
+If `/brain` reports that `load_core` is unavailable, run `./scripts/start-mcp.sh` and restart Claude Code so the MCP tools can be discovered.
+
+Full working model: `brain/CLAUDE.md`.
 CLAUDEMD
 ok "CLAUDE.md generated"
 
 echo ""
 
-# ── 11. Summary ───────────────────────────────────────────────
+# ── 12. Summary ───────────────────────────────────────────────
 
 echo "========================================="
 echo "  Setup Complete"
@@ -502,8 +543,9 @@ echo "Timezone: $USER_TZ"
 echo "AI address: $AI_ADDRESS"
 echo ""
 echo "Next steps:"
-echo "  1. Restart Claude Code (Cmd+Q then reopen) so it picks up the new MCP servers."
-echo "  2. Open any directory and start a session — the orchestrator will detect a fresh brain and walk you through onboarding."
+echo "  1. Restart Claude Code (Cmd+Q then reopen) so it picks up the new MCP servers and skills."
+echo "  2. Open any directory and type /brain — the orchestrator will detect a fresh brain and walk you through onboarding."
+echo "  3. When you're done working, type /end-session to write the handoff. Plain Claude Code is the default between summons."
 echo ""
 echo "Daemon management:"
 echo "  Restart MCP servers (e.g. after reboot):  ./scripts/start-mcp.sh"

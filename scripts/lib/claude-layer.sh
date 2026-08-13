@@ -172,9 +172,11 @@ _fb_install_one_skill() {
 # ── 2. CLAUDE.md managed blocks ───────────────────────────────
 
 # install_global_claude_md
-#   Creates, appends to, or updates the managed block in ~/.claude/CLAUDE.md.
-#   Never clobbers operator-authored content: a pre-existing file with no
-#   managed block is backed up and then APPENDED to, never rewritten.
+#   Creates, appends to, updates, or repairs the managed block in
+#   ~/.claude/CLAUDE.md. Never clobbers operator-authored content: a
+#   pre-existing file with no managed block is backed up and then APPENDED to,
+#   never rewritten, and an existing file is never modified without a
+#   timestamped backup being taken first.
 #   Idempotent — running twice yields a byte-identical file.
 install_global_claude_md() {
     mkdir -p "$(fb_claude_dir)"
@@ -197,10 +199,49 @@ install_repo_claude_md() {
         "$(fb_backup_dir)/repo-CLAUDE.md"
 }
 
+# _fb_block_state <target>
+#   Classifies the marker layout of an existing file. Printed value:
+#
+#     none          no BEGIN marker at all           -> append path
+#     ok            exactly one BEGIN, with an END
+#                   somewhere after it               -> refresh path
+#     unterminated  exactly one BEGIN and no END
+#                   after it                         -> repair path
+#     multi         two or more BEGIN markers        -> repair path
+#
+#   Markers must match a whole line exactly, the same test the rewriter uses.
+#   Stray END markers that appear before the BEGIN (or after the block's own
+#   END) are inert: the rewriter simply prints them, so they do not affect the
+#   classification.
+_fb_block_state() {
+    awk -v b="$FB_BEGIN_MARKER" -v e="$FB_END_MARKER" '
+        $0 == b { nb++; next }
+        $0 == e { if (nb >= 1) closed = 1; next }
+        END {
+            if (nb == 0)     { print "none";         exit }
+            if (nb > 1)      { print "multi";        exit }
+            if (closed)      { print "ok";           exit }
+                               print "unterminated"
+        }
+    ' "$1" 2>/dev/null
+}
+
+# _fb_backup <target> <backup_prefix>
+#   Timestamped copy of an existing file. Called before EVERY modification of
+#   an existing file — refresh, append and repair alike. One cp is the
+#   difference between an annoyance and an unrecoverable loss.
+_fb_backup() {
+    local target="$1" backup_prefix="$2" backup
+    backup="${backup_prefix}.pre-fresh-brain-$(fb_utc_stamp).bak"
+    mkdir -p "$(dirname "$backup")" || return 1
+    cp "$target" "$backup" || return 1
+    info "Backed up existing $(basename "$target") -> $backup"
+}
+
 # _fb_install_managed_block <target> <body_fn> <backup_prefix>
 _fb_install_managed_block() {
     local target="$1" body_fn="$2" backup_prefix="$3"
-    local tmp body backup
+    local tmp body state
 
     body="$(mktemp "${TMPDIR:-/tmp}/fbclaude.XXXXXX")" || return 1
     "$body_fn" > "$body"
@@ -213,37 +254,57 @@ _fb_install_managed_block() {
         return 0
     fi
 
-    if grep -Fqx "$FB_BEGIN_MARKER" "$target" 2>/dev/null; then
-        tmp="$(mktemp "${TMPDIR:-/tmp}/fbclaudeout.XXXXXX")" || { rm -f "$body"; return 1; }
-        awk -v b="$FB_BEGIN_MARKER" -v e="$FB_END_MARKER" -v bodyfile="$body" '
-            $0 == b { print; while ((getline line < bodyfile) > 0) print line; close(bodyfile); inblock=1; next }
-            $0 == e { print; inblock=0; next }
-            !inblock { print }
-        ' "$target" > "$tmp"
-        if cmp -s "$tmp" "$target"; then
-            ok "$target already current (no change)"
-            rm -f "$tmp"
-        else
+    state="$(_fb_block_state "$target")"
+
+    case "$state" in
+        ok)
+            # Well-formed block: replace its body in place, keep everything else.
+            tmp="$(mktemp "${TMPDIR:-/tmp}/fbclaudeout.XXXXXX")" || { rm -f "$body"; return 1; }
+            awk -v b="$FB_BEGIN_MARKER" -v e="$FB_END_MARKER" -v bodyfile="$body" '
+                $0 == b { print; while ((getline line < bodyfile) > 0) print line; close(bodyfile); inblock=1; next }
+                $0 == e { print; inblock=0; next }
+                !inblock { print }
+            ' "$target" > "$tmp"
+            if cmp -s "$tmp" "$target"; then
+                ok "$target already current (no change)"
+            else
+                _fb_backup "$target" "$backup_prefix"
+                cat "$tmp" > "$target"
+                ok "Refreshed the Fresh Brain block in $target"
+            fi
+            rm -f "$tmp" "$body"
+            return 0
+            ;;
+        unterminated|multi)
+            if [ "$state" = "unterminated" ]; then
+                warn "$target has an UNTERMINATED Fresh Brain block: a BEGIN marker with no END marker after it."
+            else
+                warn "$target has MORE THAN ONE Fresh Brain BEGIN marker."
+            fi
+            _fb_backup "$target" "$backup_prefix"
+            warn "  Repairing without guessing where the block ends: every line of your file"
+            warn "  is kept, only the marker lines themselves are removed, and one properly"
+            warn "  terminated block is appended at the end."
+            warn "  Managed text that was inside the broken block is kept as ordinary content."
+            warn "  Review the backup above and delete any duplication you don't want."
+
+            # Strip marker lines only. Every other line survives verbatim, in order.
+            tmp="$(mktemp "${TMPDIR:-/tmp}/fbclaudeout.XXXXXX")" || { rm -f "$body"; return 1; }
+            awk -v b="$FB_BEGIN_MARKER" -v e="$FB_END_MARKER" '
+                $0 != b && $0 != e { print }
+            ' "$target" > "$tmp"
             cat "$tmp" > "$target"
             rm -f "$tmp"
-            ok "Refreshed the Fresh Brain block in $target"
-        fi
-        rm -f "$body"
-        return 0
-    fi
+            _fb_append_separated_block "$target" "$body"
+            ok "Repaired the Fresh Brain block in $target (your content preserved)"
+            rm -f "$body"
+            return 0
+            ;;
+    esac
 
     # Existing operator file with no managed block: back up, then append.
-    backup="${backup_prefix}.pre-fresh-brain-$(fb_utc_stamp).bak"
-    mkdir -p "$(dirname "$backup")"
-    cp "$target" "$backup"
-    info "Backed up existing $(basename "$target") -> $backup"
-
-    # Guarantee a trailing newline before appending so the marker starts a line.
-    if [ -s "$target" ] && [ "$(tail -c 1 "$target" | wc -l | tr -d ' ')" = "0" ]; then
-        printf '\n' >> "$target"
-    fi
-    printf '\n' >> "$target"
-    _fb_append_block "$target" "$body"
+    _fb_backup "$target" "$backup_prefix"
+    _fb_append_separated_block "$target" "$body"
     ok "Appended the Fresh Brain block to $target (your content preserved)"
     rm -f "$body"
 }
@@ -259,6 +320,21 @@ _fb_append_block() {
     printf '%s\n' "$FB_BEGIN_MARKER" >> "$target"
     cat "$body" >> "$target"
     printf '%s\n' "$FB_END_MARKER" >> "$target"
+}
+
+# _fb_append_separated_block <target> <body>
+#   Append the block to a file that already has operator content, guaranteeing
+#   a trailing newline (so the marker starts its own line) and one blank line
+#   of separation. A file that is empty at this point gets no leading blank.
+_fb_append_separated_block() {
+    local target="$1" body="$2"
+    if [ -s "$target" ]; then
+        if [ "$(tail -c 1 "$target" | wc -l | tr -d ' ')" = "0" ]; then
+            printf '\n' >> "$target"
+        fi
+        printf '\n' >> "$target"
+    fi
+    _fb_append_block "$target" "$body"
 }
 
 # ── 3. Auto-memory seed ───────────────────────────────────────

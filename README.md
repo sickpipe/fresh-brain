@@ -61,6 +61,8 @@ Fresh Brain installs into Claude Code at two levels, and they serve different jo
 
 This is the only file Claude Code loads in *every* working directory, which is why the database routing map lives there. A repo-root `CLAUDE.md` loads only inside the repo, and auto-memory is keyed to a single working directory — neither can carry awareness everywhere. The block is small on purpose: it costs context in every session. Editing inside the markers is pointless (it gets rewritten); edit outside them freely.
 
+Your file is never modified without a timestamped copy landing in `~/.claude/backups/` first. If the markers get mangled — a BEGIN with no END, or a duplicated block — setup does not guess where the block ends: it backs up, tells you what it found, keeps every line you wrote (only the marker lines are removed) and appends one properly terminated block at the end.
+
 **Summoned layer — loaded on demand.** The `/brain` and `/end-session` skills in `~/.claude/skills/`. Nothing in the orchestrator ruleset — bootstrap, standing orders, delegation, database-first logging — enters context until you type `/brain`.
 
 **Growth surface.** `~/.claude/projects/<slug>/memory/` holds a `MEMORY.md` index plus one-topic memory files. Setup seeds a DB routing reference and never touches it again; add to it as knowledge accumulates.

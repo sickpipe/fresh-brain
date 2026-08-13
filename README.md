@@ -9,6 +9,7 @@ Sets up a **brain** database (AI memory, team members, standing orders) and a **
 - **Brain MCP Server** -- Postgres + pgvector memory server with hybrid search (semantic + full-text), version history, and team member profiles
 - **Personal MCP Server** -- Task/mission tracker with full-text search, workspaces, and document history
 - **Opt-in Orchestrator** -- Plain Claude Code by default; summon the full orchestrator (memory bootstrap, standing orders, specialist delegation) on demand with `/brain`, and close out with `/end-session`. Both skills are operator-only — the model can't fire them on its own
+- **Plain-Mode Awareness** -- Even unsummoned, Claude Code knows the two databases exist and which one holds what. Setup writes a managed block into your global `~/.claude/CLAUDE.md` (loads in every working directory) and seeds an auto-memory file you can grow over time
 - **4 Starter Team Members** -- Orchestrator, Developer, Researcher, and HR Director ready to go
 - **Starter Packs** -- Optional add-ons offered during first-run setup: Business (CRM/ERP), additional team members (health, finance, creative, ops), and standing orders
 - **Re-Themeable** -- Choose a theme during setup (Star Trek, The Office, Lord of the Rings, anything) or switch anytime by telling the orchestrator to "apply theme: [name]." Character mappings are generated on the fly — no pre-built manifests needed
@@ -41,8 +42,30 @@ cd fresh-brain
 6. Launch the brain (port 5050) and personal (port 5051) MCP daemons via `scripts/start-mcp.sh`, polling `/health` until both come up
 7. Register both servers with Claude Code at user scope via `claude mcp add --transport http`
 8. Install the `/brain` and `/end-session` skills into `~/.claude/skills/` (prompting before overwriting any existing skill of the same name)
+9. Write a managed block into your global `~/.claude/CLAUDE.md` carrying the opt-in working model and the brain/personal routing map (your existing file is backed up to `~/.claude/backups/` and appended to — never overwritten)
+10. Seed `~/.claude/projects/<slug>/memory/` with a starter memory index and DB routing reference (create-if-absent — existing memory files are never touched)
 
 When the script finishes, restart Claude Code (Cmd+Q then reopen) and type `/brain` — the orchestrator will detect a fresh brain and walk you through onboarding. Between summons, Claude Code stays in its plain default mode.
+
+## The Two Layers
+
+Fresh Brain installs into Claude Code at two levels, and they serve different jobs.
+
+**Plain layer — always loaded.** A sentinel-delimited block in your global `~/.claude/CLAUDE.md`:
+
+```
+<!-- FRESH BRAIN: BEGIN (managed — edits inside this block are overwritten) -->
+...
+<!-- FRESH BRAIN: END -->
+```
+
+This is the only file Claude Code loads in *every* working directory, which is why the database routing map lives there. A repo-root `CLAUDE.md` loads only inside the repo, and auto-memory is keyed to a single working directory — neither can carry awareness everywhere. The block is small on purpose: it costs context in every session. Editing inside the markers is pointless (it gets rewritten); edit outside them freely.
+
+**Summoned layer — loaded on demand.** The `/brain` and `/end-session` skills in `~/.claude/skills/`. Nothing in the orchestrator ruleset — bootstrap, standing orders, delegation, database-first logging — enters context until you type `/brain`.
+
+**Growth surface.** `~/.claude/projects/<slug>/memory/` holds a `MEMORY.md` index plus one-topic memory files. Setup seeds a DB routing reference and never touches it again; add to it as knowledge accumulates.
+
+Both layers are installed by `scripts/lib/claude-layer.sh`, which `setup.sh` and `scripts/update.sh` share. `./scripts/update.sh` re-runs all of it non-interactively, so an existing install stays at parity with a fresh one.
 
 ## Brain Tools
 
@@ -102,7 +125,10 @@ fresh-brain/
     brain/           # /brain skill — summons the full orchestrator (installed to ~/.claude/skills/)
     end-session/     # /end-session skill — session close-out protocol
   scripts/
+    lib/
+      claude-layer.sh  # Installs the Claude Code layer (skills, global CLAUDE.md, auto-memory)
     migrate.sh       # Apply pending DB migrations
+    update.sh        # git pull + migrations + Claude Code layer refresh (non-interactive)
     start-mcp.sh     # Idempotent daemon launcher (used by setup, also standalone)
     reset.sh         # Tear down everything for a clean reinstall
   setup.sh           # End-to-end first-run setup
@@ -126,13 +152,16 @@ Results are merged using reciprocal rank fusion (RRF), so exact matches on proje
 
 ## Onboarding
 
-See [brain/CLAUDE.md](brain/CLAUDE.md) for the opt-in working model, and [skills/brain/SKILL.md](skills/brain/SKILL.md) for the full orchestrator bootstrap flow, delegation framework, and team management protocol (first-run onboarding happens the first time you type `/brain`). Session close-out lives in [skills/end-session/SKILL.md](skills/end-session/SKILL.md).
+See [brain/CLAUDE.md](brain/CLAUDE.md) for the opt-in working model and the two Claude Code layers, and [skills/brain/SKILL.md](skills/brain/SKILL.md) for the full orchestrator bootstrap flow, delegation framework, and team management protocol (first-run onboarding happens the first time you type `/brain`). Session close-out lives in [skills/end-session/SKILL.md](skills/end-session/SKILL.md).
 
 ## Troubleshooting
 
 - **Verify MCP servers are registered with Claude Code:** `claude mcp list` — you should see `brain` and `personal` entries pointing at `http://127.0.0.1:5050/mcp` and `:5051/mcp`.
 - **Inspect daemon logs:** `tail brain/mcp.log` and `tail personal/mcp.log`. PIDs are recorded in `brain/mcp.pid` / `personal/mcp.pid`.
 - **Restart daemons after a reboot:** `./scripts/start-mcp.sh` (idempotent — skips servers that are already running and healthy).
+- **Claude Code doesn't know about the databases in plain mode:** check that `~/.claude/CLAUDE.md` contains the `FRESH BRAIN: BEGIN` block, then restart Claude Code. `./scripts/update.sh` reinstalls it.
+- **`/brain` isn't offered:** the skills aren't installed. `ls ~/.claude/skills/` should list `brain` and `end-session`; run `./scripts/update.sh` to reinstall, then restart Claude Code.
+- **Removing the plain layer:** delete everything between the `FRESH BRAIN: BEGIN` and `END` markers in `~/.claude/CLAUDE.md` (markers included). Your pre-install file is in `~/.claude/backups/`.
 - **Full clean reset:** `./scripts/reset.sh` stops daemons, drops databases, removes Claude Code MCP entries, and deletes `.venv` + `.env` + log/pid files. Then re-run `./setup.sh`.
 
 ## License

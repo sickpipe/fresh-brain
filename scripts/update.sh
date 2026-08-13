@@ -16,6 +16,8 @@ ok()    { echo -e "${GREEN}[OK]${NC}    $*"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 fail()  { echo -e "${RED}[FAIL]${NC}  $*" >&2; }
 
+CLAUDE_LAYER_LIB="$SCRIPT_DIR/lib/claude-layer.sh"
+
 DID_STASH=false
 
 trap '
@@ -168,7 +170,34 @@ for db_pair in "${DATABASES[@]}"; do
     fi
 done
 
-# --- 4. Post-flight ---
+# --- 4. Refresh the Claude Code layer ---
+# Parity with setup.sh: pulling the repo is not enough, the skills and the
+# global instructions live under ~/.claude/ and have to be re-installed.
+# Sourced here rather than at the top of the script so we run the version
+# that was just pulled, not the one from before the update.
+#
+# Fully non-interactive by design — an update that blocks on a prompt is an
+# update people stop running. Skills are replaced (with a backup) when they
+# differ, the CLAUDE.md block is refreshed in place, and memory files are
+# only ever created when absent.
+
+echo ""
+info "Refreshing Claude Code layer (skills, global CLAUDE.md, auto-memory)..."
+
+if [ -f "$CLAUDE_LAYER_LIB" ]; then
+    # shellcheck source=lib/claude-layer.sh
+    . "$CLAUDE_LAYER_LIB"
+    install_operator_skills "$REPO_DIR" auto
+    install_global_claude_md
+    install_repo_claude_md "$REPO_DIR"
+    seed_auto_memory
+    CLAUDE_LAYER_OK=true
+else
+    warn "lib/claude-layer.sh not found — skipping skills/CLAUDE.md/memory refresh"
+    CLAUDE_LAYER_OK=false
+fi
+
+# --- 5. Post-flight ---
 echo ""
 info "New schema versions:"
 for db_pair in "${DATABASES[@]}"; do
@@ -200,7 +229,11 @@ for result in "${MIGRATION_RESULTS[@]}"; do
     echo "  $result"
 done
 
-# --- 5. Restart MCP servers ---
+if [ "$CLAUDE_LAYER_OK" = true ]; then
+    ok "Claude Code layer refreshed (skills, ~/.claude/CLAUDE.md, auto-memory)"
+fi
+
+# --- 6. Restart MCP servers ---
 if [ "$GIT_CHANGED" = true ] || [ "$TOTAL_APPLIED" -gt 0 ]; then
     echo ""
     info "Restarting MCP servers (code or schema changed)..."
